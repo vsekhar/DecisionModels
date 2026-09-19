@@ -148,12 +148,17 @@ Attach to a struct (enums come later, section 16). The macro:
   requires it.
 
 ```swift
-public protocol Decision: Sendable {
+public protocol Decision: Askable, Sendable where Projection == Self {
     static var questions: Questionnaire { get }
     init(answers: Answers) throws
     var answers: Answers { get }
 }
 ```
+
+`Decision` refines `Askable` (section 5.2) so that a decision can nest in
+another decision. Swift cannot add a protocol conformance to a protocol in
+an extension, so the refinement sits on the declaration; an extension on
+`Decision` supplies the three `Askable` members.
 
 The property name is the question id. A nested `@Decision` type flattens
 with a dotted prefix, so `bug.severity` is one question inside a larger
@@ -242,7 +247,7 @@ public struct Inquiry: Sendable {        // what @Ask's arguments become
 | an `@Levels` enum | `Rating<Self>` | the `@Levels` macro emits the `typealias` on the concrete type |
 | `Bool` | `Verdict` | the framework |
 | `Optional<W>` where `W: Askable` | `W.Projection`; adds `read(_:minimumConfidence:)` | the framework |
-| a `Decision` | `Self`; `questions` returns `Self.questions.prefixed(id)`, `projection` returns `try Self(answers: answers.scoped(to: id))` | the framework, in an extension on `Decision` |
+| a `Decision` | `Self`; `questions` returns `Self.questions.prefixed(id)`, `projection` returns `try Self(answers: answers.scoped(to: id))` | the framework: `Decision` refines `Askable`, and an extension on `Decision` supplies the members |
 
 The `typealias` must sit on the concrete enum. A default in a protocol
 extension cannot be overridden by a refining protocol; the verification pass
@@ -540,6 +545,7 @@ public final class DecisionSession: Sendable {
                        options: DecisionOptions? = nil) async throws -> Answers
 
     public var model: any DecisionModel { get }
+    public var options: DecisionOptions { get }   // the defaults every call starts from
     public var usage: Usage { get }               // cumulative; Mutex-backed
     public func prewarm() async                   // forwards to the model
 }
@@ -561,11 +567,16 @@ public struct Usage: Sendable, Codable, Hashable, AdditiveArithmetic {
 
 public struct DecisionOptions: Sendable {
     public var timeout: Duration? = nil
-    public var samples: Int = 1                                 // > 1 asks for repeated draws where supported
+    public var samples: Int = 1                                 // > 1 asks for repeated draws where supported; < 1 is a precondition failure
     public var minimumProbabilityQuality: ProbabilityQuality? = nil   // throw if the response is below this
-    public var metadata: [String: String] = [:]                 // copied into the record
+    public var metadata: [String: String] = [:]                 // travels on the request into records and logs
 }
 ```
+
+A per-call `options` value replaces the session's options entirely, as
+`GenerationOptions` does in Foundation Models. `session.options` exposes the
+defaults so a call site can copy them and change one field; a fresh value
+carries no session-level floor, and that is visible at the call site.
 
 The session is a plain `Sendable` class. Its only mutable state is the
 usage counter behind a `Mutex`, so concurrent `decide` calls are safe and
@@ -573,9 +584,14 @@ strict concurrency holds. It is not `@Observable`; a view model that wants
 to observe usage reads it after each call.
 
 Before it sends, the session checks `model.availability`, then checks the
-questionnaire against `model.capabilities` (option counts, level counts,
-structured criteria and instructions, question count). Failures throw before
-any network call. After the response it checks `minimumProbabilityQuality`.
+questionnaire for sanity (`invalidQuestion`: an empty questionnaire,
+duplicate question ids, a choice with no options or duplicate option ids, a
+rating with fewer than two levels, a question with no instructions) and then
+against `model.capabilities`
+(option counts, level counts, structured criteria and instructions, question
+count, repeated samples). Failures throw before any network call. After the
+response it adds the usage, then checks `minimumProbabilityQuality`; tokens
+spent on a rejected response still count.
 
 Type inference makes `.self` optional at the call site:
 
@@ -709,6 +725,7 @@ public struct DecisionRequest: Sendable, Codable, Hashable {
     public let questionnaire: Questionnaire
     public let samples: Int
     public let timeout: Duration?
+    public let metadata: [String: String]   // tags for records; caches and replays key on the other fields
 }
 
 public struct ModelResponse: Sendable, Codable {
@@ -731,6 +748,9 @@ public struct DecisionModelCapabilities: Sendable {
     public var maximumQuestionsPerRequest: Int?
     public var contextTokens: Int?
     public var supportsRepeatedSamples: Bool
+    // The memberwise initializer defaults to .pointEstimate, no structured
+    // input, Jev's limits of 255 options and 10 levels, no question limit,
+    // no context size, and no repeated samples.
 }
 
 public enum DecisionModelAvailability: Sendable {
@@ -909,8 +929,18 @@ extension TicketTriage: Decision {
 
 An optional property, `@Ask("...", minimumConfidence: 0.7) var team: Team?`,
 expands to `var team: Team? { Team?.read($team, minimumConfidence: 0.7) }`
-with the same `$team: Choice<Team>` peer, and the plain-value initializer
-takes `team: Team?` and stores `Choice.uncertain` for `nil`.
+with the peer typed `Team?.Projection`, which is `Choice<Team>`; the `T?`
+sugar parses in every position the expansion needs, so the macro emits the
+declared type verbatim. The plain-value initializer takes `team: Team?` and
+stores `Choice.uncertain` for `nil`.
+
+A nested decision property, `@Ask() var bug: BugReport`, has
+`BugReport.Projection == BugReport`, so `$bug` is the nested value itself
+and has no `record`. The synthesized `answers` merges
+`$bug.answers.prefixed("bug").records` into its own records and uses
+`$bug.answers.quality` in the quality minimum. Only leaf properties use
+`$name.record`. `init(answers:)` passes the unscoped `answers` to
+`BugReport.projection(in:id:)`; the scoping happens inside.
 
 The `$name` peers are declared through the macro name specifier
 ``prefixed(`$`)``. The verification pass built this macro against the

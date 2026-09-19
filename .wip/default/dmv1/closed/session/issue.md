@@ -2,7 +2,7 @@
 priority: p1
 type: task
 created: 2026-09-19T01:01:39-04:00
-updated: 2026-09-19T01:01:39-04:00
+updated: 2026-09-19T02:02:35-04:00
 blocked-on:
   - types
 may-unblock:
@@ -45,3 +45,9 @@ wip/types (blocker), wip/macros, wip/jev, wip/testing, wip/apple, wip/compose (a
 - [ ] `Optional` gating: `Team?.read(choice, minimumConfidence: 0.7)` is `nil` below and the value at or above.
 - [ ] `Decision` nested through `Askable`: a struct containing another hand-written `Decision` produces prefixed ids and decodes from scoped answers.
 - [ ] `decision.answers` round-trips through `init(answers:)`.
+
+---
+
+_📝 Noted on 2026-09-19 02:02:35-04:00 @ git:64b3c67+local_
+
+Done. DecisionModel protocol, capabilities, availability, request/response/usage, DecisionSession (Mutex-backed usage, context merge, pre-flight, quality floor), Decision and Askable with Bool/Optional/choice/rating/Decision conformances, SwiftUI environment key. Verifier: all 7 criteria hold. Fixed its should-fix by making per-call options replace the session's entirely, documented, with session.options exposed for copy-and-edit. Also: sanity checks now run before capability checks; an empty questionnaire is invalidQuestion; a missing nested answer reports the dotted id; samples < 1 is a precondition; metadata now travels on DecisionRequest (caches and replays must key on state, questionnaire, and samples, not metadata); usage is counted before the quality-floor throw; .null instructions are invalidQuestion. Notes for wip/macros: emit the declared type verbatim (T? sugar parses everywhere); for an optional property always emit read(_:minimumConfidence:) and never the one-argument read; nested decision answers merge via $bug.answers.prefixed(id) and use $bug.answers.quality; Choice.uncertain needs CaseIterable. Notes for wip/testing: a plain-value decision's answers are byte-stable only from the second pass (certain records list one option), so fixtures should be recorded from reads, not from certain values.

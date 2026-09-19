@@ -81,3 +81,18 @@ struct Customer: Codable, Equatable {
 func isClose(_ value: Double, _ expected: Double, within tolerance: Double = 0.01) -> Bool {
     abs(value - expected) <= tolerance
 }
+
+// MARK: Askable
+
+// The concrete type carries the `typealias`, as the macros will emit it. The
+// framework defaults then pick the kind: `Choice` for an options enum, `Rating`
+// for a levels enum, with no ambiguity even though a levels enum is also a
+// `ChoiceOption` and `CaseIterable`.
+
+extension Team: Askable {
+    typealias Projection = Choice<Team>
+}
+
+extension Severity: Askable {
+    typealias Projection = Rating<Severity>
+}
