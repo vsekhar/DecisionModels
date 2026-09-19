@@ -109,6 +109,18 @@ set -a; . ./.env; set +a
 swift test -Xswiftc -warnings-as-errors --enable-code-coverage --skip GuidedGenerationLiveTests
 ```
 
+The Tests step also sets `LLVM_PROFILE_FILE=/dev/null`. Coverage
+instruments the macro plugin, and the compiler runs the plugin in a sandbox
+that allows writes to no folder. A plugin that exits on its own then cannot
+write its coverage file and prints `LLVM Profile Error`. The sandbox allows
+`/dev/null`, and nobody reads the plugin's coverage. SwiftPM sets its own
+value for the test process, so the test coverage does not change.
+
+The CI log may still show `Internal Error: DecodingError` lines during the
+build. The plugin prints them when the compiler sends it a message that
+ends early, and they appear with or without coverage. They do not affect
+the build or the tests.
+
 The coverage report holds only the package's own sources. Tests,
 swift-syntax, and the generated test runner are left out, because the
 export names the `Sources` folder:

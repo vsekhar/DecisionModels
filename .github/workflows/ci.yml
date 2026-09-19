@@ -48,10 +48,19 @@ jobs:
 
       # One run, because each coverage run clears the one before it. A fork's
       # pull request has no key, so it skips the Jev suite.
+      #
+      # Coverage instruments the macro plugin too. The compiler runs the
+      # plugin in a sandbox that allows writes to no folder, only to a few
+      # device files, so a plugin that exits on its own cannot write its
+      # coverage file and prints "LLVM Profile Error". /dev/null is one of
+      # the files the sandbox allows, and nobody reads the plugin's coverage.
+      # SwiftPM sets its own LLVM_PROFILE_FILE for the test process, so the
+      # test coverage is unchanged.
       - name: Tests
         env:
           TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
           SKIP_JEV: ${{ github.event_name == 'pull_request' }}
+          LLVM_PROFILE_FILE: /dev/null
         run: |
           skip=(--skip GuidedGenerationLiveTests)
           if [ "$SKIP_JEV" = "true" ]; then skip+=(--skip JevLive); fi
