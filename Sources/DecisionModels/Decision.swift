@@ -31,4 +31,13 @@ extension Decision {
     public static func read(_ projection: Self) -> Self {
         projection
     }
+
+    public static func answers(from projection: Self, id: String) -> Answers {
+        projection.answers.prefixed(id)
+    }
+
+    /// A plain decision is already its own answer.
+    public static func certain(_ value: Self) -> Self {
+        value
+    }
 }

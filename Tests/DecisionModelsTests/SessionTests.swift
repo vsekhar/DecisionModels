@@ -35,20 +35,17 @@ struct TicketTriage: Decision {
     }
 
     var answers: Answers {
-        Answers(
-            records: [
-                "team": _team.record,
-                "severity": _severity.record,
-                "requestsRefund": _requestsRefund.record,
-            ],
-            quality: min(_team.quality, _severity.quality, _requestsRefund.quality)
-        )
+        Answers(merging: [
+            Team.answers(from: _team, id: "team"),
+            Severity.answers(from: _severity, id: "severity"),
+            Bool.answers(from: _requestsRefund, id: "requestsRefund"),
+        ])
     }
 
     init(team: Team, severity: Severity, requestsRefund: Bool) {
-        _team = Choice(certain: team)
-        _severity = Rating(certain: severity)
-        _requestsRefund = Verdict(certain: requestsRefund)
+        _team = Team.certain(team)
+        _severity = Severity.certain(severity)
+        _requestsRefund = Bool.certain(requestsRefund)
     }
 }
 

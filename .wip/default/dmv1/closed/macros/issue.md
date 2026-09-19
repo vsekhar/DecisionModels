@@ -2,7 +2,7 @@
 priority: p1
 type: task
 created: 2026-09-19T01:01:39-04:00
-updated: 2026-09-19T01:01:39-04:00
+updated: 2026-09-19T02:54:03-04:00
 blocked-on:
   - session
 may-unblock:
@@ -43,3 +43,15 @@ wip/session (blocker), wip/fanout and wip/commands (extend these macros).
 - [ ] Diagnostics: optional without threshold; `@Levels` with one case; `@Decision` on an enum (for now).
 - [ ] `@Criterion` arguments reach `criterion`; missing `@Criterion` humanizes the case name.
 - [ ] Expansion snapshot tests for all five macros.
+
+---
+
+_📝 Noted on 2026-09-19 02:04:17-04:00 @ git:b62ee8e+local_
+
+Session notes that bind the expansion: emit the declared type verbatim (T? sugar parses in every position); for an optional property always emit read(_:minimumConfidence:), never the one-argument read; Choice.uncertain needs CaseIterable. Because a macro cannot tell a leaf from a nested Decision, add to Askable a static answers(from:id:) that returns a leaf's single record or a nested decision's prefixed answers, and an Answers(merging:) that unions records and takes the minimum quality; the synthesized answers merges one per property.
+
+---
+
+_📝 Noted on 2026-09-19 02:54:03-04:00 @ git:b62ee8e+local_
+
+Done. Five macros in DecisionModelsMacros; Askable gained answers(from:id:) and per-kind certain(_:), Answers gained init(merging:). Verifier: all 7 criteria hold (it compiled DESIGN.md section 4 verbatim). Its should-fixes fixed: implicitly unwrapped optionals rejected with one message; @Ask takes State and Criterion and minimumConfidence as a plain Double on its own overload; questions/init(answers:)/answers now emitted as members so a decision nested in a namespace enum resolves sibling types (extension carries only Decision, Sendable); one diagnostic per mistake; optionID is a switch over case names; raw identifiers keep backticks; acronyms keep case; snapshots match the compiler's conformance requests; empty @Decision struct diagnosed; generic decisions compile (questions is a static var). Two-binding declarations get the toolchain's own message; a macro cannot speak there. DESIGN.md 5.1, 5.2, 5.3, 12 updated to the generated shape.

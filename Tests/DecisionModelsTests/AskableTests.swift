@@ -25,15 +25,15 @@ struct BugReport: Decision {
     }
 
     var answers: Answers {
-        Answers(
-            records: ["severity": _severity.record, "reproducible": _reproducible.record],
-            quality: min(_severity.quality, _reproducible.quality)
-        )
+        Answers(merging: [
+            Severity.answers(from: _severity, id: "severity"),
+            Bool.answers(from: _reproducible, id: "reproducible"),
+        ])
     }
 
     init(severity: Severity, reproducible: Bool) {
-        _severity = Rating(certain: severity)
-        _reproducible = Verdict(certain: reproducible)
+        _severity = Severity.certain(severity)
+        _reproducible = Bool.certain(reproducible)
     }
 }
 
@@ -57,14 +57,15 @@ struct Intake: Decision {
     }
 
     var answers: Answers {
-        var records = ["team": _team.record]
-        for (id, record) in _bug.answers.prefixed("bug").records { records[id] = record }
-        return Answers(records: records, quality: min(_team.quality, _bug.answers.quality))
+        Answers(merging: [
+            Team?.answers(from: _team, id: "team"),
+            BugReport.answers(from: _bug, id: "bug"),
+        ])
     }
 
     init(team: Team?, bug: BugReport) {
-        _team = team.map { Choice(certain: $0) } ?? .uncertain
-        _bug = bug
+        _team = Team?.certain(team)
+        _bug = BugReport.certain(bug)
     }
 }
 
@@ -275,5 +276,54 @@ extension AskableTests {
             return
         }
         #expect(id == "bug.severity")
+    }
+}
+
+extension AskableTests {
+    @Test("A leaf contributes one record under its id")
+    func leafContributesOneRecord() {
+        let answers = Bool.answers(from: Verdict(probability: 0.87), id: "requestsRefund")
+
+        #expect(answers.records.keys.sorted() == ["requestsRefund"])
+        #expect(answers.records["requestsRefund"] == .verdict(probability: 0.87))
+        #expect(answers.quality == .pointEstimate)
+    }
+
+    @Test("An optional contributes what its wrapped type contributes")
+    func optionalContributesTheWrappedRecord() {
+        let projection = choice(of: .returns, confidence: 0.9)
+
+        #expect(
+            Team?.answers(from: projection, id: "team") == Team.answers(from: projection, id: "team")
+        )
+    }
+
+    @Test("A nested decision contributes prefixed answers")
+    func nestedDecisionContributesPrefixedAnswers() {
+        let bug = BugReport(severity: .degraded, reproducible: true)
+
+        let answers = BugReport.answers(from: bug, id: "bug")
+
+        #expect(answers.records.keys.sorted() == ["bug.reproducible", "bug.severity"])
+        #expect(answers.quality == bug.answers.quality)
+    }
+
+    @Test("certain builds a sure answer of every kind")
+    func certainBuildsSureAnswers() {
+        #expect(Team.certain(.billing).value == .billing)
+        #expect(isClose(Team.certain(.billing)[.billing], 1))
+        #expect(Severity.certain(.blocking).value == .blocking)
+        #expect(isClose(Severity.certain(.blocking).score, 2))
+        #expect(Bool.certain(true).value)
+        let bug = BugReport(severity: .cosmetic, reproducible: false)
+        #expect(BugReport.certain(bug).severity == .cosmetic)
+    }
+
+    @Test("certain on nil says nothing")
+    func certainOnNilIsUncertain() {
+        #expect(isClose(Team?.certain(nil).confidence, 0))
+        #expect(isClose(Severity?.certain(nil).confidence, 0))
+        #expect(isClose(Bool?.certain(nil).probability, 0.5))
+        #expect(Team?.certain(.shipping).value == .shipping)
     }
 }

@@ -11,6 +11,16 @@ public protocol Askable {
     static func projection(in answers: Answers, id: String) throws -> Projection
     /// Reduces the rich answer to the plain value.
     static func read(_ projection: Projection) -> Self
+    /// The wire answers this property contributes under `id`.
+    static func answers(from projection: Projection, id: String) -> Answers
+}
+
+/// A leaf answers one question, so it contributes one record. A nested
+/// decision overrides this with its own, prefixed, answers.
+extension Askable where Projection: Answer {
+    public static func answers(from projection: Projection, id: String) -> Answers {
+        Answers(records: [id: projection.record], quality: projection.quality)
+    }
 }
 
 // MARK: Choice
@@ -35,6 +45,11 @@ extension Askable where Self: ChoiceOption & CaseIterable, Projection == Choice<
     public static func read(_ projection: Choice<Self>) -> Self {
         projection.value
     }
+
+    /// The answer a plain value stands for: this option, with no doubt.
+    public static func certain(_ value: Self) -> Choice<Self> {
+        Choice(certain: value)
+    }
 }
 
 // MARK: Rating
@@ -51,6 +66,11 @@ extension Askable where Self: RatingLevel, Projection == Rating<Self> {
 
     public static func read(_ projection: Rating<Self>) -> Self {
         projection.value
+    }
+
+    /// The answer a plain value stands for: this level, with no doubt.
+    public static func certain(_ value: Self) -> Rating<Self> {
+        Rating(certain: value)
     }
 }
 
@@ -69,6 +89,11 @@ extension Bool: Askable {
 
     public static func read(_ projection: Verdict) -> Bool {
         projection.value
+    }
+
+    /// The answer a plain value stands for: this verdict, with no doubt.
+    public static func certain(_ value: Bool) -> Verdict {
+        Verdict(certain: value)
     }
 }
 
@@ -91,6 +116,10 @@ extension Optional: Askable where Wrapped: Askable {
     public static func read(_ projection: Wrapped.Projection) -> Wrapped? {
         Wrapped.read(projection)
     }
+
+    public static func answers(from projection: Wrapped.Projection, id: String) -> Answers {
+        Wrapped.answers(from: projection, id: id)
+    }
 }
 
 extension Optional where Wrapped: Askable, Wrapped.Projection: Answer {
@@ -100,5 +129,28 @@ extension Optional where Wrapped: Askable, Wrapped.Projection: Answer {
         minimumConfidence: Double
     ) -> Wrapped? {
         projection.confidence >= minimumConfidence ? Wrapped.read(projection) : nil
+    }
+}
+
+/// A `nil` plain value stores the uncertain answer, which gates back to `nil`.
+/// Each kind keeps its own uncertain form, so the three extensions below stay
+/// apart by the projection type, as `questions` and `read` do.
+extension Optional where Wrapped: Askable & ChoiceOption & CaseIterable,
+                         Wrapped.Projection == Choice<Wrapped> {
+    public static func certain(_ value: Wrapped?) -> Choice<Wrapped> {
+        value.map { Choice(certain: $0) } ?? .uncertain
+    }
+}
+
+extension Optional where Wrapped: Askable & RatingLevel,
+                         Wrapped.Projection == Rating<Wrapped> {
+    public static func certain(_ value: Wrapped?) -> Rating<Wrapped> {
+        value.map { Rating(certain: $0) } ?? .uncertain
+    }
+}
+
+extension Optional where Wrapped == Bool {
+    public static func certain(_ value: Bool?) -> Verdict {
+        value.map { Verdict(certain: $0) } ?? .uncertain
     }
 }

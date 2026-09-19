@@ -136,16 +136,23 @@ let session = DecisionSession(model: ScriptedModel { _ in
 
 Attach to a struct (enums come later, section 16). The macro:
 
-- adds conformance to `Decision`;
-- synthesizes `static let questions: Questionnaire` from the `@Ask` properties;
+- adds conformance to `Decision` and `Sendable` in an empty extension. A
+  member that is not `Sendable` fails there with the compiler's own
+  message; a macro sees syntax, not conformances, so it cannot say more;
+- synthesizes `static var questions: Questionnaire` from the `@Ask`
+  properties, in declaration order;
 - synthesizes `init(answers: Answers) throws`, which the session calls;
 - synthesizes `var answers: Answers`, the inverse, so a decision can be
   recorded or served from a test double;
 - synthesizes a plain-value initializer, `init(team:severity:requestsRefund:)`,
   that builds certain answers (probability 1.0 on the given value). This is for
   unit tests of downstream logic and for previews. No model is needed;
-- emits an error if any member is not `Sendable`, because `Decision`
-  requires it.
+- emits an error for a struct with no `@Ask` property, for a stored property
+  that has neither `@Ask` nor a default value, and for an enum or class.
+
+The four members are written into the struct itself, not into the
+extension, so a decision declared inside a namespace enum can still name
+its sibling types. Generated members carry the struct's own access level.
 
 ```swift
 public protocol Decision: Askable, Sendable where Projection == Self {
@@ -231,7 +238,20 @@ public protocol Askable {
     static func questions(id: String, _ inquiry: Inquiry) -> [QuestionSpec]
     static func projection(in answers: Answers, id: String) throws -> Projection
     static func read(_ projection: Projection) -> Self
+    static func answers(from projection: Projection, id: String) -> Answers
 }
+```
+
+`answers(from:id:)` is what lets the macro write one line per property
+without knowing whether the property is a leaf or a nested decision: a leaf
+returns its one record under `id`; a nested decision returns its own
+answers with `id` as the prefix. `Answers(merging:)` joins the parts and
+takes the lowest quality. Each kind also has a static `certain(_:)` that
+turns a plain value into a sure projection, and `Optional` adds
+`certain(_:)` overloads that store the kind's `uncertain` value for `nil`;
+the plain-value initializer calls these.
+
+```swift
 
 public struct Inquiry: Sendable {        // what @Ask's arguments become
     public var instructions: State       // string or structured
@@ -247,7 +267,7 @@ public struct Inquiry: Sendable {        // what @Ask's arguments become
 | an `@Levels` enum | `Rating<Self>` | the `@Levels` macro emits the `typealias` on the concrete type |
 | `Bool` | `Verdict` | the framework |
 | `Optional<W>` where `W: Askable` | `W.Projection`; adds `read(_:minimumConfidence:)` | the framework |
-| a `Decision` | `Self`; `questions` returns `Self.questions.prefixed(id)`, `projection` returns `try Self(answers: answers.scoped(to: id))` | the framework: `Decision` refines `Askable`, and an extension on `Decision` supplies the members |
+| a `Decision` | `Self`; `questions` returns `Self.questions.prefixed(id)`, `projection` returns `try Self(answers: answers.scoped(to: id))`, `answers` returns `value.answers.prefixed(id)` | the framework: `Decision` refines `Askable`, and an extension on `Decision` supplies the members |
 
 The `typealias` must sit on the concrete enum. A default in a protocol
 extension cannot be overridden by a refining protocol; the verification pass
@@ -273,9 +293,12 @@ enum Team { ... }
 
 @Levels
 enum Severity { ... }
-// adds: RatingLevel (which implies ChoiceOption, CaseIterable), Comparable by case order, Askable
+// adds: RatingLevel (which implies ChoiceOption, CaseIterable), Comparable by case order, Askable, Codable
 // the macro emits an error when there are fewer than 2 cases;
 // the upper limit is a provider capability, checked per request
+
+// Both macros write optionID as a switch that returns the case name, so a
+// CustomStringConvertible conformance cannot change wire ids.
 ```
 
 `@Criterion` carries the structured forms Jev accepts. Jev's structured
@@ -865,90 +888,112 @@ switches on cases and never sees HTTP status numbers or Apple error types.
 ## 12. Macro expansion
 
 What `@Decision`, `@Ask`, `@Options`, and `@Levels` generate for the example
-in section 4, simplified:
+in section 4. Generated members carry the declaring type's access level;
+the example's types are internal, so nothing below says `public`.
 
 ```swift
-extension Team: ChoiceOption, CaseIterable, Askable {
-    public typealias Projection = Choice<Team>
-    public var optionID: String { String(describing: self) }
-    public var criterion: Criterion {
+extension Team: ChoiceOption, CaseIterable, Askable, Codable {
+    typealias Projection = Choice<Team>
+    var optionID: String {
+        switch self {
+        case .returns: "returns"
+        case .shipping: "shipping"
+        case .billing: "billing"
+        }
+    }
+    var criterion: Criterion {
         switch self {
         case .returns:  Criterion("Exchanges and refunds")
         case .shipping: Criterion("Delivery issues")
         case .billing:  Criterion("Payment problems")
         }
     }
-    // questions(id:_:), projection(in:id:), read(_:) come from a
-    // framework extension on ChoiceOption where Projection == Choice<Self>
+    // questions(id:_:), projection(in:id:), read(_:), answers(from:id:) and
+    // certain(_:) come from a framework extension on Askable where
+    // Self: ChoiceOption & CaseIterable, Projection == Choice<Self>
 }
 
-extension Severity: RatingLevel, Askable {
-    public typealias Projection = Rating<Severity>
-    public static func < (a: Self, b: Self) -> Bool {
-        allCases.firstIndex(of: a)! < allCases.firstIndex(of: b)!
+extension Severity: RatingLevel, Askable, Codable {
+    typealias Projection = Rating<Severity>
+    static func < (low: Self, high: Self) -> Bool {
+        allCases.firstIndex(of: low)! < allCases.firstIndex(of: high)!
     }
     // optionID and criterion as above
 }
 
 struct TicketTriage {
-    public var $team: Team.Projection                       // Choice<Team>
+    // From @Ask, per property: a peer and a getter.
+    var $team: Team.Projection                       // Choice<Team>
     var team: Team { Team.read($team) }
 
-    public var $severity: Severity.Projection               // Rating<Severity>
+    var $severity: Severity.Projection               // Rating<Severity>
     var severity: Severity { Severity.read($severity) }
 
-    public var $requestsRefund: Bool.Projection             // Verdict
+    var $requestsRefund: Bool.Projection             // Verdict
     var requestsRefund: Bool { Bool.read($requestsRefund) }
-}
 
-extension TicketTriage: Decision {
-    public static let questions = Questionnaire(
-        Team.questions(id: "team", Inquiry("Which team handles this ticket?"))
-        + Severity.questions(id: "severity", Inquiry("How severe is the reported issue?"))
-        + Bool.questions(id: "requestsRefund", Inquiry("Does the customer ask for a refund?"))
-    )
+    // From @Decision: four members, written into the struct.
+    static var questions: Questionnaire {
+        Questionnaire(
+            Team.questions(id: "team", Inquiry("Which team handles this ticket?"))
+                + Severity.questions(id: "severity", Inquiry("How severe is the reported issue?"))
+                + Bool.questions(id: "requestsRefund", Inquiry("Does the customer ask for a refund?"))
+        )
+    }
 
-    public init(answers: Answers) throws {
+    init(answers: Answers) throws {
         $team = try Team.projection(in: answers, id: "team")
         $severity = try Severity.projection(in: answers, id: "severity")
         $requestsRefund = try Bool.projection(in: answers, id: "requestsRefund")
     }
 
-    public var answers: Answers {
-        Answers(records: ["team": $team.record, "severity": $severity.record, "requestsRefund": $requestsRefund.record],
-                quality: min($team.quality, $severity.quality, $requestsRefund.quality))
+    var answers: Answers {
+        Answers(merging: [
+            Team.answers(from: $team, id: "team"),
+            Severity.answers(from: $severity, id: "severity"),
+            Bool.answers(from: $requestsRefund, id: "requestsRefund"),
+        ])
     }
 
-    public init(team: Team, severity: Severity, requestsRefund: Bool) {
-        $team = Choice(certain: team)
-        $severity = Rating(certain: severity)
-        $requestsRefund = Verdict(certain: requestsRefund)
+    init(team: Team, severity: Severity, requestsRefund: Bool) {
+        $team = Team.certain(team)
+        $severity = Severity.certain(severity)
+        $requestsRefund = Bool.certain(requestsRefund)
     }
 }
+
+extension TicketTriage: Decision, Sendable {}
 ```
+
+Every line the macro writes for a property has the same shape. The property
+kind is never inspected: `Team.questions`, `Team.answers(from:id:)`, and
+`Team.certain` resolve through `Askable` at type-check time (section 5.2),
+so a nested decision, an optional, and a leaf all expand the same way.
 
 An optional property, `@Ask("...", minimumConfidence: 0.7) var team: Team?`,
 expands to `var team: Team? { Team?.read($team, minimumConfidence: 0.7) }`
 with the peer typed `Team?.Projection`, which is `Choice<Team>`; the `T?`
 sugar parses in every position the expansion needs, so the macro emits the
 declared type verbatim. The plain-value initializer takes `team: Team?` and
-stores `Choice.uncertain` for `nil`.
+`Team?.certain(nil)` stores `Choice.uncertain`. An implicitly unwrapped
+optional is rejected with a message that says to write `Team?`. Only
+`Optional` has the two-argument `read`, so a threshold on a plain property
+fails to type-check, and only leaf projections conform to `Answer`, so an
+optional nested decision fails to type-check too.
 
 A nested decision property, `@Ask() var bug: BugReport`, has
-`BugReport.Projection == BugReport`, so `$bug` is the nested value itself
-and has no `record`. The synthesized `answers` merges
-`$bug.answers.prefixed("bug").records` into its own records and uses
-`$bug.answers.quality` in the quality minimum. Only leaf properties use
-`$name.record`. `init(answers:)` passes the unscoped `answers` to
-`BugReport.projection(in:id:)`; the scoping happens inside.
+`BugReport.Projection == BugReport`, so `$bug` is the nested value itself.
+`BugReport.answers(from: $bug, id: "bug")` returns the nested answers with
+the `bug.` prefix, and `BugReport.projection(in:id:)` scopes the unscoped
+answers it is given.
 
 The `$name` peers are declared through the macro name specifier
-``prefixed(`$`)``. The verification pass built this macro against the
-toolchain's SwiftSyntax on Swift 6.3.3 and confirmed: a peer macro can
-declare `var $team: Choice<Team>`, an accessor macro can rewrite `team` into
-a getter over it, hand-written code in the same struct can read `$team`, and
-a generated initializer can assign it. Hand-written code still cannot declare
-a `$` name, which is the intended asymmetry.
+``prefixed(`$`)``. Hand-written code cannot declare a `$` name, which is the
+intended asymmetry.
+
+`@Ask` takes `State` for its instructions and `Criterion` for `ifTrue` and
+`ifFalse`, so a string literal works and so does a value; `minimumConfidence`
+is a plain `Double` on its own overload, so it cannot be written as `nil`.
 
 ## 13. Testing and evaluation
 

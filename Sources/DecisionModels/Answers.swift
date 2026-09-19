@@ -9,6 +9,21 @@ public struct Answers: Sendable, Codable, Hashable {
         self.quality = quality
     }
 
+    /// Joins the answers of several properties into one set.
+    ///
+    /// A later part wins when two parts hold the same id. The quality is the
+    /// lowest of the parts, because the set is only as good as its worst
+    /// answer.
+    public init(merging parts: [Answers]) {
+        var records: [String: AnswerRecord] = [:]
+        var quality: ProbabilityQuality = .calibrated
+        for part in parts {
+            for (id, record) in part.records { records[id] = record }
+            quality = min(quality, part.quality)
+        }
+        self.init(records: records, quality: quality)
+    }
+
     /// Reads the answer a typed question asks for.
     public subscript<Q: Question>(_ question: Q) -> Q.Answer {
         get throws {

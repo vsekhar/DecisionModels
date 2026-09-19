@@ -160,3 +160,45 @@ struct AnswersTests {
         #expect(again.probabilities == team.probabilities)
     }
 }
+
+extension AnswersTests {
+    @Test("Merging joins the records of several parts")
+    func mergingJoinsRecords() {
+        let merged = Answers(merging: [
+            Answers(records: ["team": .verdict(probability: 0.9)], quality: .calibrated),
+            Answers(records: ["refund": .verdict(probability: 0.1)], quality: .calibrated),
+        ])
+
+        #expect(merged.records.keys.sorted() == ["refund", "team"])
+        #expect(merged.quality == .calibrated)
+    }
+
+    @Test("Merging keeps the lowest quality")
+    func mergingTakesTheLowestQuality() {
+        let merged = Answers(merging: [
+            Answers(records: ["a": .verdict(probability: 1)], quality: .calibrated),
+            Answers(records: ["b": .verdict(probability: 1)], quality: .sampled(count: 8)),
+            Answers(records: ["c": .verdict(probability: 1)], quality: .pointEstimate),
+        ])
+
+        #expect(merged.quality == .pointEstimate)
+    }
+
+    @Test("A later part wins on a clash")
+    func mergingLaterPartWins() {
+        let merged = Answers(merging: [
+            Answers(records: ["a": .verdict(probability: 0.1)], quality: .calibrated),
+            Answers(records: ["a": .verdict(probability: 0.9)], quality: .calibrated),
+        ])
+
+        #expect(merged.records["a"] == .verdict(probability: 0.9))
+    }
+
+    @Test("Merging nothing gives an empty calibrated set")
+    func mergingNothing() {
+        let merged = Answers(merging: [])
+
+        #expect(merged.records.isEmpty)
+        #expect(merged.quality == .calibrated)
+    }
+}
