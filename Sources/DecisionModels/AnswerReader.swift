@@ -64,8 +64,12 @@ enum AnswerReader {
         guard !levels.isEmpty else {
             throw DecisionError.invalidQuestion(id: id, reason: "The scale has no levels.")
         }
-        guard score.isFinite else {
-            throw DecisionError.malformedResponse("Question \(id) has a score that is not a number.")
+        // The score is an expected level index, so it lives on the scale.
+        let top = Double(levels.count - 1)
+        guard score.isFinite, score >= -1e-9, score <= top + 1e-9 else {
+            throw DecisionError.malformedResponse(
+                "Question \(id) has a score outside 0...\(levels.count - 1)."
+            )
         }
         var mapped: [Level: Double] = [:]
         for level in levels { mapped[level] = 0 }

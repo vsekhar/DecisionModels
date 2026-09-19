@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-19T01:01:39-04:00
-updated: 2026-09-19T01:01:39-04:00
+updated: 2026-09-19T02:03:13-04:00
 blocked-on:
   - types
 may-unblock:
@@ -31,3 +31,9 @@ wip/types (blocker).
 - [ ] Two ratings with weights 0.4 and 0.6 produce the hand-computed value; weights 2 and 3 normalize to the same.
 - [ ] `minimumConfidence` is the minimum of the terms.
 - [ ] `terms` reports each contribution.
+
+---
+
+_📝 Noted on 2026-09-19 02:03:13-04:00 @ git:3777d22+local_
+
+Done in a worktree, merged by copy. CompositeScore with Weighted terms for Rating and Verdict, result builder, normalized weights, per-term contributions, minimumConfidence as the weakest term. Verifier: all criteria hold; its coverage findings fixed: tests for the 0...1 clamp, NaN, exit tests for negative and NaN weights, overflowing weights (now finite-guarded), builder for/else/array paths. Its pointer on the reader fixed: AnswerReader.rating now rejects a score off the scale (malformedResponse), with a test. DESIGN.md 16 and 6.2 updated.

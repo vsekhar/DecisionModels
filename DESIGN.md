@@ -444,9 +444,9 @@ theirs, and why section 13 ships a calibration report.
 - The reader that turns records into typed answers throws `DecisionError`
   on anything a provider must never send: probabilities that are empty,
   negative, not finite, or sum to zero; a reported confidence or verdict
-  probability outside `0...1`; option ids the question does not know; two
-  options that share an id. Probabilities that do not sum to one are
-  scaled. Ties in `mostLikely` resolve by the option's description text, so
+  probability outside `0...1`; a rating score off the scale; option ids
+  the question does not know; two options that share an id. Probabilities
+  that do not sum to one are scaled. Ties in `mostLikely` resolve by the option's description text, so
   the order is stable.
 
 The three-band pattern from the Jev docs, at the call site:
@@ -1055,8 +1055,14 @@ Two version-specific details for the adapter, checked against the Xcode
 - **Hierarchical choice.** A helper that walks a tree of `@Options` enums
   with beam search, one request per depth, as in the Jev hierarchical
   classification recipe.
-- **Composite scores.** A small weighted-sum helper over `Rating.normalized`
-  values, with the weights visible in code.
+- **Composite scores.** `CompositeScore` is a weighted sum over
+  `Rating.normalized` values and `Verdict` probabilities, built with
+  `Weighted(weight, name, answer)` terms in a result builder. Weights
+  normalize to sum to one and each term reports its contribution.
+  `minimumConfidence` is the lowest confidence among the terms, following
+  the Jev function-calling recipe: the weakest judgment sets the
+  composite's reliability. A zero weight silences a term's value but not
+  its doubt; drop the term with an `if` in the builder instead.
 
 ## 17. Resolved decisions
 

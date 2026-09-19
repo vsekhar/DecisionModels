@@ -111,4 +111,23 @@ struct MalformedInputTests {
         #expect(record.confidence.isFinite)
         #expect(record.confidence >= 0 && record.confidence <= 1)
     }
+
+    @Test("A rating score outside the scale throws")
+    func scoreOutOfRange() {
+        for score in [100.0, -7.0, .nan] {
+            let record = AnswerRecord.rating(score: score, probabilities: [1: 1], confidence: nil)
+            #expect(throws: DecisionError.self) {
+                try AnswerReader.rating(record, id: "severity", quality: .calibrated) as Rating<Severity>
+            }
+        }
+        // The ends of the scale are fine.
+        let ends = [0.0, 2.0].map {
+            AnswerRecord.rating(score: $0, probabilities: [1: 1], confidence: nil)
+        }
+        for record in ends {
+            #expect(throws: Never.self) {
+                try AnswerReader.rating(record, id: "severity", quality: .calibrated) as Rating<Severity>
+            }
+        }
+    }
 }
