@@ -8,6 +8,9 @@ import SwiftSyntaxMacros
 /// The members go in the type itself, not in the extension, so that generated
 /// code can name whatever the type can name. A decision nested in an enum
 /// namespace sees its siblings; an extension at file scope would not.
+///
+/// On an enum the macro writes a command instead; `DecisionEnumMacro` does
+/// that work.
 public struct DecisionMacro: ExtensionMacro, MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,
@@ -18,9 +21,25 @@ public struct DecisionMacro: ExtensionMacro, MemberMacro {
     ) throws -> [ExtensionDeclSyntax] {
         // The member role reports the problems, so one mistake gives one
         // message. This role carries the conformance and nothing else.
-        guard declaration.is(StructDeclSyntax.self), !protocols.isEmpty else { return [] }
+        guard !protocols.isEmpty else { return [] }
 
-        let inherited = protocols.map(\.trimmedDescription).joined(separator: ", ")
+        let asked = protocols.map(\.trimmedDescription)
+        let inherited: String
+        if declaration.is(StructDeclSyntax.self) {
+            inherited = asked.joined(separator: ", ")
+        } else if let enumeration = declaration.as(EnumDeclSyntax.self) {
+            // An enum stores no projection, so it is askable through its
+            // nested `Answered` and is never a decision itself.
+            guard DecisionEnumMacro.isCommand(enumeration, marker: node, in: context) else {
+                return []
+            }
+            inherited = (["Askable"] + asked.filter { $0 != "Decision" && $0 != "Askable" })
+                .joined(separator: ", ")
+        } else {
+            return []
+        }
+        guard !inherited.isEmpty else { return [] }
+
         let source = """
             extension \(type.trimmedDescription): \(inherited) {
             }
@@ -37,9 +56,16 @@ public struct DecisionMacro: ExtensionMacro, MemberMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
+        if let enumeration = declaration.as(EnumDeclSyntax.self) {
+            return DecisionEnumMacro.members(of: enumeration, marker: node, in: context)
+        }
         guard let structure = declaration.as(StructDeclSyntax.self) else {
-            context.report(.onlyStructs, at: node)
+            context.report(.structOrEnum, at: node)
             return []
+        }
+        if DecisionEnumMacro.instructions(of: node) != nil {
+            // A struct's questions come from its properties, one text each.
+            context.report(.commandTakesNoInstructions, at: node)
         }
 
         let access = accessPrefix(of: structure.modifiers)

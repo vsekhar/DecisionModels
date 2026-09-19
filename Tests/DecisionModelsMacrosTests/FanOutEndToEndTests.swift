@@ -5,7 +5,7 @@ import Testing
 // section 16.
 
 @Options
-enum Symbol {
+enum Ticker {
     @Criterion("NVIDIA") case nvda
     @Criterion("the S&P 500 ETF") case spy
     @Criterion("Bitcoin") case btc
@@ -14,7 +14,7 @@ enum Symbol {
 @Decision
 struct Watchlist {
     @Ask("Does the request mention {option}?")
-    var symbols: Set<Symbol>
+    var symbols: Set<Ticker>
 }
 
 /// The same question, read at a higher bar.
@@ -26,7 +26,7 @@ struct Watchlist {
 @Decision
 struct StrictWatchlist {
     @Ask("Does the request mention {option}?", minimumProbability: 0.9)
-    var symbols: Set<Symbol>
+    var symbols: Set<Ticker>
 }
 
 /// What the fake answers for the watchlist: one verdict per case.

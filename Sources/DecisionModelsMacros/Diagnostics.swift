@@ -20,10 +20,6 @@ struct DecisionMacroDiagnostic: DiagnosticMessage {
 extension DecisionMacroDiagnostic {
     // MARK: @Decision
 
-    static let onlyStructs = Self(
-        "For now, only structs can be decisions.",
-        id: "onlyStructs"
-    )
     static let unaskedProperty = Self(
         "A stored property of a decision needs an @Ask marker or an initial value.",
         id: "unaskedProperty"

@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-19T01:01:39-04:00
-updated: 2026-09-19T04:53:03-04:00
+updated: 2026-09-19T06:40:25-04:00
 blocked-on:
   - macros
 may-unblock:
@@ -39,3 +39,9 @@ wip/macros (blocker).
 _📝 Noted on 2026-09-19 04:53:03-04:00 @ git:4330fb9+local_
 
 Design decision for the enum form (recorded here, DESIGN.md 16 to follow with the code): an enum cannot store a projection, so @Decision on an enum generates a nested enum Kind (an options enum over the case names, criteria from @Criterion) and a nested struct Answered: Decision that holds $kind: Choice<Kind> and the built command; the enum itself conforms to Askable with Projection == Answered and read gives the enum value. DecisionSession gains decide/respond overloads for any Askable whose Projection is a Decision, so let command: Command = try await session.decide(about:) works and respond returns DecisionResponse<Command.Answered>. The choice question text comes from @Decision("…") on the enum. Only the chosen case's payload is decoded; answers carries the kind record plus the chosen payload's answers prefixed by the case name.
+
+---
+
+_📝 Noted on 2026-09-19 06:40:25-04:00 @ git:c882021+local_
+
+Done in a worktree, merged by copy. @Decision on an enum generates nested Kind and Answered, the enum conforms to Askable with Projection == Answered, DecisionSession gains decide/respond overloads for any Askable whose projection is a Decision (a plain Decision still binds to the Decision overloads). Verifier: all criteria hold; expansion byte-identical to the snapshot; one request per call. Fixed after verification: snapshots now model the three-name conformance list the compiler sends; empty question text rejected at compile time; struct-or-enum wording; onlyStructs removed. Known and documented: an optional decision annotation was already accepted via value-to-optional injection and never returns nil; unavailable overloads cannot close it. Merge note: both extension test files declared enum Symbol; the fan-out one is now Ticker. DESIGN.md 5.1 (Enums), 5.2, 8, 12, 16 updated.

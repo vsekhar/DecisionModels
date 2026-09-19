@@ -6,12 +6,17 @@
 /// The macro adds the `Decision` conformance and writes `questions`,
 /// `init(answers:)`, `answers`, and a plain-value initializer that builds
 /// certain answers for tests and previews.
-@attached(extension, conformances: Decision, Sendable)
+///
+/// On an enum, `instructions` is the question over the cases, and each case
+/// carries nothing or one unlabeled `Decision`. A struct takes no
+/// `instructions`.
+@attached(extension, conformances: Decision, Sendable, Askable)
 @attached(
     member,
     names: named(questions), named(init(answers:)), named(answers), arbitrary
 )
-public macro Decision() = #externalMacro(module: "DecisionModelsMacros", type: "DecisionMacro")
+public macro Decision(_ instructions: State = .null) =
+    #externalMacro(module: "DecisionModelsMacros", type: "DecisionMacro")
 
 /// Asks one question about the state and keeps the answer in `$name`.
 ///

@@ -134,7 +134,8 @@ let session = DecisionSession(model: ScriptedModel { _ in
 
 ### 5.1 `@Decision`
 
-Attach to a struct (enums come later, section 16). The macro:
+Attach to a struct, or to an enum (see **Enums** below). On a struct the
+macro:
 
 - adds conformance to `Decision` and `Sendable` in an empty extension. A
   member that is not `Sendable` fails there with the compiler's own
@@ -148,7 +149,7 @@ Attach to a struct (enums come later, section 16). The macro:
   that builds certain answers (probability 1.0 on the given value). This is for
   unit tests of downstream logic and for previews. No model is needed;
 - emits an error for a struct with no `@Ask` property, for a stored property
-  that has neither `@Ask` nor a default value, and for an enum or class.
+  that has neither `@Ask` nor a default value, and for a class or actor.
 
 The four members are written into the struct itself, not into the
 extension, so a decision declared inside a namespace enum can still name
@@ -1063,8 +1064,13 @@ struct TicketTriage {
     }
 }
 
-extension TicketTriage: Decision, Sendable {}
+extension TicketTriage: Decision, Sendable, Askable {}
 ```
+
+The extension names `Askable` as well as `Decision`, although `Decision`
+refines it: the `@Decision` attribute declares `Askable` among its
+conformances for the enum form, and once an attribute names a protocol
+the compiler expects the macro to supply it.
 
 Every line the macro writes for a property has the same shape. The property
 kind is never inspected: `Team.questions`, `Team.answers(from:id:)`, and

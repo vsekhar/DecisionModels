@@ -6,10 +6,16 @@ import Testing
 
 /// The five macros, with the conformances the compiler asks each one for.
 /// `Codable` reaches a macro as its two halves, so the lists spell them out.
+/// `@Decision` names `Askable` too: a conformance the attribute names is kept
+/// for the expansion to write, so the extension states it even though
+/// `Decision` refines it.
 let decisionMacros: [String: MacroSpec] = [
     "Ask": MacroSpec(type: AskMacro.self),
     "Criterion": MacroSpec(type: CriterionMacro.self),
-    "Decision": MacroSpec(type: DecisionMacro.self, conformances: ["Decision", "Sendable"]),
+    "Decision": MacroSpec(
+        type: DecisionMacro.self,
+        conformances: ["Decision", "Sendable", "Askable"]
+    ),
     "Levels": MacroSpec(
         type: LevelsMacro.self,
         conformances: ["RatingLevel", "Askable", "Decodable", "Encodable", "Comparable"]

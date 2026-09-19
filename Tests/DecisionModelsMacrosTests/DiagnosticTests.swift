@@ -177,7 +177,7 @@ struct DiagnosticTests {
                     }
                 }
 
-                extension Ticket: Decision, Sendable {
+                extension Ticket: Decision, Sendable, Askable {
                 }
                 """,
             diagnostics: [
@@ -295,8 +295,8 @@ struct DiagnosticTests {
         )
     }
 
-    @Test("For now, a decision is a struct")
-    func onlyStructs() {
+    @Test("An enum decision needs its question text")
+    func enumNeedsInstructions() {
         expectExpansion(
             of: """
                 @Decision
@@ -311,7 +311,31 @@ struct DiagnosticTests {
                 """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "For now, only structs can be decisions.",
+                    message:
+                        "@Decision on an enum needs the question text: "
+                        + "@Decision(\"Which command...\").",
+                    line: 1,
+                    column: 1
+                )
+            ]
+        )
+    }
+
+    @Test("A decision is a struct or an enum")
+    func onlyStructsOrEnums() {
+        expectExpansion(
+            of: """
+                @Decision
+                class Ticket {
+                }
+                """,
+            is: """
+                class Ticket {
+                }
+                """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "A decision is a struct or an enum.",
                     line: 1,
                     column: 1
                 )
@@ -364,7 +388,7 @@ struct DiagnosticTests {
                     }
                 }
 
-                extension Ticket: Decision, Sendable {
+                extension Ticket: Decision, Sendable, Askable {
                 }
                 """,
             diagnostics: [

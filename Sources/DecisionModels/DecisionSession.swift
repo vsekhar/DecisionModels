@@ -75,13 +75,70 @@ public final class DecisionSession: Sendable {
         about state: some StateRepresentable,
         options: DecisionOptions? = nil
     ) async throws -> DecisionResponse<D> {
+        try await answer(D.self, about: state.stateRepresentation, options: options)
+    }
+
+    // MARK: Deciding through a projection
+
+    /// Asks for any `Askable` type whose projection is a decision, such as a
+    /// `@Decision` enum, and returns the plain value.
+    ///
+    /// The request is the projection's own questionnaire, and `read` reduces
+    /// the projection to the value. A plain `Decision` binds to the `Decision`
+    /// call above, which is the more specialized of the two.
+    ///
+    /// An optional decision answers the same way and never comes back `nil`,
+    /// because a whole decision has no one confidence to gate on: write
+    /// `let triage: TicketTriage = ...` and read the confidence of the answer
+    /// that matters. The answer to `let triage: TicketTriage? = ...` is the
+    /// same decision, wrapped.
+    public func decide<A: Askable>(
+        _ type: A.Type = A.self,
+        about state: some StateRepresentable,
+        options: DecisionOptions? = nil
+    ) async throws -> A where A.Projection: Decision {
+        let response = try await answer(
+            A.Projection.self, about: state.stateRepresentation, options: options
+        )
+        return A.read(response.decision)
+    }
+
+    /// Asks the same of a state the builder assembles. A plain `Decision`
+    /// binds to the `Decision` call above, and an optional decision comes back
+    /// wrapped, never `nil`.
+    public func decide<A: Askable>(
+        _ type: A.Type = A.self,
+        options: DecisionOptions? = nil,
+        @StateBuilder about state: () throws -> State
+    ) async throws -> A where A.Projection: Decision {
+        try await decide(type, about: state(), options: options)
+    }
+
+    /// Asks for such a type and returns its projection with the metadata of
+    /// the call, so that the caller reads the confidence of every part.
+    ///
+    /// A `@Decision` enum answers with its `Answered` projection, which holds
+    /// the chosen kind beside the command. A plain `Decision` binds to the
+    /// `Decision` call above, and an optional decision answers as the decision
+    /// it wraps, because `Optional<D>.Projection` is `D`.
+    public func respond<A: Askable>(
+        _ type: A.Type = A.self,
+        about state: some StateRepresentable,
+        options: DecisionOptions? = nil
+    ) async throws -> DecisionResponse<A.Projection> where A.Projection: Decision {
+        try await answer(A.Projection.self, about: state.stateRepresentation, options: options)
+    }
+
+    /// The one path a decision takes, whichever call asked for it. The
+    /// overloads above name the type; this one runs it.
+    private func answer<D: Decision>(
+        _ type: D.Type,
+        about state: State,
+        options: DecisionOptions?
+    ) async throws -> DecisionResponse<D> {
         let clock = ContinuousClock()
         let start = clock.now
-        let response = try await send(
-            D.questions,
-            about: state.stateRepresentation,
-            options: options ?? defaults
-        )
+        let response = try await send(D.questions, about: state, options: options ?? defaults)
         let decision = try D(answers: response.answers)
         return DecisionResponse(
             decision: decision,

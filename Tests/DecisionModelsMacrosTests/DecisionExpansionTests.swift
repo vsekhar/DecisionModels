@@ -79,7 +79,7 @@ struct DecisionExpansionTests {
                     }
                 }
 
-                extension TicketTriage: Decision, Sendable {
+                extension TicketTriage: Decision, Sendable, Askable {
                 }
                 """
         )
@@ -128,7 +128,7 @@ struct DecisionExpansionTests {
                     }
                 }
 
-                extension Refund: Decision, Sendable {
+                extension Refund: Decision, Sendable, Askable {
                 }
                 """
         )
@@ -175,7 +175,7 @@ struct DecisionExpansionTests {
                     }
                 }
 
-                extension Invoice: Decision, Sendable {
+                extension Invoice: Decision, Sendable, Askable {
                 }
                 """
         )
@@ -236,7 +236,7 @@ struct DecisionExpansionTests {
                     }
                 }
 
-                extension Intake: Decision, Sendable {
+                extension Intake: Decision, Sendable, Askable {
                 }
                 """
         )
@@ -283,7 +283,7 @@ struct DecisionExpansionTests {
                     }
                 }
 
-                extension Routing: Decision, Sendable {
+                extension Routing: Decision, Sendable, Askable {
                 }
                 """
         )
