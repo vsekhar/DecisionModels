@@ -207,7 +207,8 @@ struct RetryTests {
 
     @Test("The timeout bounds the whole call, not one attempt")
     func timeoutBoundsTheWholeCall() async throws {
-        // Every attempt times out, so the first one spends the whole budget.
+        // Every attempt times out. However many run, none of them and no
+        // wait between them may pass the deadline.
         let fake = harness(Array(repeating: .failure(.timedOut), count: 4))
         do {
             _ = try await fake.model.decide(
@@ -221,7 +222,6 @@ struct RetryTests {
             }
         }
         #expect(fake.clock.elapsed <= .seconds(5))
-        #expect(fake.transport.sent.count == 1)
         #expect(fake.transport.sent.allSatisfy { $0.timeoutInterval <= 5 })
     }
 
@@ -242,6 +242,100 @@ struct RetryTests {
         #expect(fake.clock.waited == [.seconds(2)])
         #expect(fake.clock.elapsed <= .seconds(2))
         #expect(fake.transport.sent.count == 1)
+    }
+
+    @Test("A hung attempt is cut off and the next one answers")
+    func attemptTimeoutLetsTheRetryAnswer() async throws {
+        let fake = harness([.failure(.timedOut), .ok(sampleResponse)])
+        _ = try await fake.model.decide(
+            DecisionRequest(state: ticket, questionnaire: triage(), timeout: .seconds(60))
+        )
+        #expect(fake.transport.sent.count == 2)
+        let first = try #require(fake.transport.sent.first)
+        #expect(isClose(first.timeoutInterval, 10))
+        #expect(fake.clock.waited == [.milliseconds(500)])
+        #expect(fake.clock.elapsed == .seconds(10) + .milliseconds(500))
+    }
+
+    @Test("A transport that hangs every time ends in timeout after more than one try")
+    func everyAttemptHangs() async throws {
+        let fake = harness(Array(repeating: .failure(.timedOut), count: 4))
+        do {
+            _ = try await fake.model.decide(
+                DecisionRequest(state: ticket, questionnaire: triage(), timeout: .seconds(60))
+            )
+            Issue.record("The call should give up.")
+        } catch let error as DecisionError {
+            guard case .timeout = error else {
+                Issue.record("Expected a timeout, got \(error).")
+                return
+            }
+        }
+        #expect(fake.transport.sent.count == 4)
+        #expect(fake.transport.sent.allSatisfy { isClose($0.timeoutInterval, 10) })
+        // Four attempts of ten seconds and three backoffs.
+        #expect(fake.clock.elapsed == .seconds(43) + .milliseconds(500))
+    }
+
+    @Test("The deadline cuts the last attempt shorter than the attempt timeout")
+    func deadlineBoundsTheAttemptTimeout() async throws {
+        let fake = harness(Array(repeating: .failure(.timedOut), count: 4))
+        do {
+            _ = try await fake.model.decide(
+                DecisionRequest(state: ticket, questionnaire: triage(), timeout: .seconds(25))
+            )
+            Issue.record("The call should give up.")
+        } catch let error as DecisionError {
+            guard case .timeout = error else {
+                Issue.record("Expected a timeout, got \(error).")
+                return
+            }
+        }
+        // Ten, a half-second wait, ten, a one-second wait, and what is left.
+        #expect(fake.transport.sent.count == 3)
+        let last = try #require(fake.transport.sent.last)
+        #expect(isClose(last.timeoutInterval, 3.5))
+        #expect(fake.clock.elapsed == .seconds(25))
+    }
+
+    @Test("The attempt timeout applies without a deadline")
+    func attemptTimeoutWithoutDeadline() async throws {
+        let fake = harness([.ok(sampleResponse)])
+        _ = try await fake.model.decide(DecisionRequest(state: ticket, questionnaire: triage()))
+        let sent = try #require(fake.transport.sent.first)
+        #expect(isClose(sent.timeoutInterval, 10))
+    }
+
+    @Test("Without an attempt timeout, one hung attempt spends the whole deadline")
+    func noAttemptTimeout() async throws {
+        let fake = harness(
+            Array(repeating: .failure(.timedOut), count: 4),
+            retry: RetryPolicy(attemptTimeout: nil)
+        )
+        do {
+            _ = try await fake.model.decide(
+                DecisionRequest(state: ticket, questionnaire: triage(), timeout: .seconds(60))
+            )
+            Issue.record("The call should give up.")
+        } catch let error as DecisionError {
+            guard case .timeout = error else {
+                Issue.record("Expected a timeout, got \(error).")
+                return
+            }
+        }
+        #expect(fake.transport.sent.count == 1)
+        let first = try #require(fake.transport.sent.first)
+        #expect(isClose(first.timeoutInterval, 60))
+        #expect(fake.clock.elapsed == .seconds(60))
+    }
+
+    @Test("Without an attempt timeout or a deadline, the transport's default stands")
+    func noAttemptTimeoutAndNoDeadline() async throws {
+        let fake = harness([.ok(sampleResponse)], retry: RetryPolicy(attemptTimeout: nil))
+        _ = try await fake.model.decide(DecisionRequest(state: ticket, questionnaire: triage()))
+        let sent = try #require(fake.transport.sent.first)
+        let untouched = URLRequest(url: Jev.productionHost)
+        #expect(sent.timeoutInterval == untouched.timeoutInterval)
     }
 
     @Test("A cancelled call throws CancellationError, not a provider error")

@@ -859,12 +859,18 @@ Jev(version: "jev-1.13.0", apiKey: key, retry: .default, transport: URLSessionTr
 Transport and waiting: `HTTPTransport` is a one-method protocol over
 `URLRequest`, with `URLSessionTransport` as the default, so tests script
 responses without a network. `RetryPolicy` (`maxRetries`, `initialBackoff`,
-`maximumBackoff`, `multiplier`; `.default`, `.none`) retries 429, 529, and
-transport failures with capped doubling backoff; a `Retry-After` header is
-honored but never beyond `maximumBackoff`. `DecisionRequest.timeout` is a
-deadline for the whole call, attempts and waits included, not for one
-attempt. Cancellation is never retried and surfaces as `CancellationError`,
-not as a `DecisionError`. Status codes map to `DecisionError`: 401
+`maximumBackoff`, `multiplier`, `attemptTimeout`; `.default`, `.none`)
+retries 429, 529, and transport failures with capped doubling backoff; a
+`Retry-After` header is honored but never beyond `maximumBackoff`.
+`DecisionRequest.timeout` is a deadline for the whole call, attempts and
+waits included, not for one attempt. `attemptTimeout` (ten seconds by
+default; `nil` for none) bounds each attempt on its own: an attempt gets
+that or the time left before the deadline, whichever is less, so one hung
+connection costs one attempt and a backoff, not the whole deadline. The
+provider retries a timed-out attempt like any transport failure; when the
+retries run out, or the deadline passes, the call ends in `.timeout`.
+Cancellation is never retried and surfaces as `CancellationError`, not as
+a `DecisionError`. Status codes map to `DecisionError`: 401
 `.unauthorized`, 422 `.invalidQuestion` with the server's message, 429
 `.rateLimited(retryAfter:)` and 529 `.overloaded` after retries; anything
 else travels as `.transport(JevServerError)`.

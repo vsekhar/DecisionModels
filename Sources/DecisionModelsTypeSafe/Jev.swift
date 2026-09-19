@@ -156,7 +156,9 @@ public struct Jev: DecisionModel {
     ///
     /// The timeout is what the caller waits for the answer, tries and waits
     /// counted in, so it becomes a deadline for the whole call and bounds
-    /// every attempt and every pause under it.
+    /// every attempt and every pause under it. The policy's attempt timeout
+    /// bounds each attempt on its own, so one hung attempt ends early and
+    /// leaves time under the deadline for another.
     private func send(
         _ request: URLRequest,
         timeout: Duration? = nil
@@ -165,8 +167,8 @@ public struct Jev: DecisionModel {
         var retries = 0
         while true {
             var attempt = request
-            if let timeout, let deadline {
-                attempt.timeoutInterval = min(timeout, try left(until: deadline)).timeInterval
+            if let budget = try attemptBudget(before: deadline) {
+                attempt.timeoutInterval = budget.timeInterval
             }
             do {
                 let (data, response) = try await transport.send(attempt)
@@ -193,6 +195,13 @@ public struct Jev: DecisionModel {
                 try await pause(retry.backoff(retry: retries), until: deadline)
             }
         }
+    }
+
+    /// How long the next attempt may take: the policy's attempt timeout or
+    /// the time left before the deadline, whichever is less. With neither,
+    /// the transport's own default stands.
+    private func attemptBudget(before deadline: ContinuousClock.Instant?) throws -> Duration? {
+        try [retry.attemptTimeout, deadline.map(left(until:))].compactMap { $0 }.min()
     }
 
     /// Waits between two tries, and gives up when the caller has.
