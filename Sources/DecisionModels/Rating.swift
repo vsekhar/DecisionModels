@@ -44,7 +44,23 @@ public struct Rating<Level: RatingLevel>: Answer {
 
     /// The most likely level. It can differ from `score` on a two-peaked
     /// distribution.
-    public var value: Level { distribution.mostLikely }
+    ///
+    /// Two levels that tie for the highest probability give the lower one.
+    /// The scale is ordered, so the tie-break of `Distribution.mostLikely`,
+    /// which compares description text, would name an arbitrary level here.
+    /// A choice keeps that rule, because its options have no order.
+    public var value: Level {
+        var best: Level?
+        var highest = -Double.infinity
+        for level in Level.levels {
+            let probability = distribution.probabilities[level] ?? 0
+            if probability > highest {
+                highest = probability
+                best = level
+            }
+        }
+        return best ?? distribution.mostLikely
+    }
 
     /// The score on a `0...1` scale, for composite scoring.
     public var normalized: Double {

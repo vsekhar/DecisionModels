@@ -76,7 +76,7 @@ struct AnswerTests {
                 quality: .calibrated
             )
         )
-        #expect(rating.value == .blocking)
+        #expect(rating.value == .cosmetic)  // a tie goes to the lower level
         #expect(isClose(rating.score, 1.0))
         #expect(isClose(rating.normalized, 0.5))
         #expect(rating.legend.count == 3)

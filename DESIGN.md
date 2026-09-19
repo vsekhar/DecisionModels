@@ -469,8 +469,9 @@ theirs, and why section 13 ships a calibration report.
   negative, not finite, or sum to zero; a reported confidence or verdict
   probability outside `0...1`; a rating score off the scale; option ids
   the question does not know; two options that share an id. Probabilities
-  that do not sum to one are scaled. Ties in `mostLikely` resolve by the option's description text, so
-  the order is stable.
+  that do not sum to one are scaled. Ties in a choice's `mostLikely` resolve by the option's description
+  text, so the order is stable. Ties in a rating's `value` go to the lower
+  level, because the scale is ordered.
 
 The three-band pattern from the Jev docs, at the call site:
 
@@ -1006,20 +1007,28 @@ Module `DecisionModelsTesting`.
   can return `decision.answers` for a certain case or hand-built records with
   skewed distributions to exercise the low-confidence branches.
 - **`RecordingModel` and `ReplayModel`** turn real traffic into fixtures.
-  `DecisionRecord` is `Codable` and holds the `DecisionRequest`, the
-  `ModelResponse`, the model identity, the options metadata, and the
-  duration. Replay keys on `DecisionRequest`'s hash.
+  `DecisionRecord` is `Codable` and holds the `DecisionRequest` (which
+  carries the options metadata), the `ModelResponse`, the model identity,
+  the duration, and the time of recording. Replay keys on the state, the
+  questionnaire, and the sample count; metadata and timeout do not affect
+  the key. Record fixtures from reads, not from plain-value decisions: a
+  certain choice record lists one option, a read lists them all.
 - **`Evaluation`** runs a labeled set through one or more models and
   reports, per question, accuracy, Brier score, and expected calibration
-  error, plus per-band counts for a candidate threshold. Because
-  probabilities are first-class, calibration checks are one function call.
-  This is how a team picks thresholds on its own data and how it compares
-  Jev, a preview version, and an on-device fallback on equal terms.
+  error, plus per-band counts for a candidate threshold. Accuracy compares
+  the answer the model named. Calibration bins each answer on the
+  probability of the value it named, in ten equal-width bins with the last
+  closed at 1.0. The evaluation scores the typed decision's round-tripped
+  records, so its confidences equal what a call site thresholds on. Models
+  in one evaluation must have distinct identities. Because probabilities
+  are first-class, calibration checks are one function call. This is how a
+  team picks thresholds on its own data and how it compares Jev, a preview
+  version, and an on-device fallback on equal terms.
 
 ```swift
 let report = try await Evaluation(models: [Jev.latest, Jev.preview, onDevice])
     .run(TicketTriage.self, on: labeled)   // [(state: State, expected: TicketTriage)]
-print(report[Jev.latest.identity].question("team").brierScore)
+print(report[Jev.latest.identity]?.question("team")?.brierScore ?? .nan)
 ```
 
 ## 14. Provider mapping

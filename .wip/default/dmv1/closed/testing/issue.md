@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-19T01:01:39-04:00
-updated: 2026-09-19T01:01:39-04:00
+updated: 2026-09-19T02:55:21-04:00
 blocked-on:
   - session
 may-unblock:
@@ -36,3 +36,9 @@ wip/session (blocker), wip/compose (Cascade, Consensus, Cached live in core, not
 - [ ] `DecisionRecord` JSON round-trips.
 - [ ] `Evaluation` on a hand-built labeled set gives accuracy 1.0 and Brier 0 for perfect one-hot answers, and known values for a chosen imperfect set (compute by hand in the test).
 - [ ] ECE of a perfectly calibrated synthetic set is 0 (±0.01).
+
+---
+
+_📝 Noted on 2026-09-19 02:55:21-04:00 @ git:54a57e0+local_
+
+Done in a worktree, merged by copy. ScriptedModel, DecisionRecord, ReplayKey, Recorder, RecordingModel, ReplayModel, Evaluation with Calibration math. Verifier: all 4 criteria hold, math recomputed independently. Its should-fixes fixed: Rating.value now breaks ties to the lower level (core change, so evaluation and application agree; one old core assertion updated); choice calibration bins on the probability of the named answer; Evaluation preconditions distinct identities. Docs: ECE bin convention, round-tripped records scored on purpose. DESIGN.md 6.2 and 13 updated.
