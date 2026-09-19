@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-19T01:01:39-04:00
-updated: 2026-09-19T01:01:39-04:00
+updated: 2026-09-19T01:07:52-04:00
 blocked-on:
   - session
 may-unblock:
@@ -37,3 +37,9 @@ wip/session (blocker), wip/macros (nice for tests; not required).
 - [ ] Prompt builder unit tests: contains state JSON, every question id and criterion.
 - [ ] Response mapping unit tests from hand-built `GeneratedContent`.
 - [ ] Live tests pass on this Mac and fail when the system model is unavailable.
+
+---
+
+_📝 Noted on 2026-09-19 01:07:52-04:00 @ git:c886133+local_
+
+SDK inventory (Xcode 26.6, FoundationModels module 1.5.2, target macos26.5) at scratchpad foundationmodels-api.md. Findings that change the approach: (1) The macOS/iOS 27 surface is absent: no LanguageModel protocol, no PrivateCloudComputeLanguageModel, no LanguageModelCapabilities, no LanguageModelError. Implement only the SystemLanguageModel initializer now; leave the generic init for when Xcode 27 is installed and record that in DESIGN.md 15.1. (2) No usage or token-accounting API exists on LanguageModelSession or Response. Report Usage with inputTokens estimated via SystemLanguageModel.tokenCount(for:) (26.4+, guarded by #available) and outputTokens 0; document it as an estimate. (3) GeneratedContent has no properties()/elements() methods; read values with value(_:forProperty:) or switch on .kind. (4) contextSize is back-deployed and hardcodes 4096 before 26.4; this Mac reports 4096. (5) UnavailableReason has exactly three cases: deviceNotEligible, appleIntelligenceNotEnabled, modelNotReady. (6) GenerationOptions has one init; temperature is a property on GenerationOptions, not on SamplingMode. (7) GenerationError has 9 cases with enum-level 26.0 availability only. Probe on this Mac: SystemLanguageModel.default is AVAILABLE; a trivial respond took 3.5 s.

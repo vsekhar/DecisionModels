@@ -996,15 +996,18 @@ only uses Jev can ship on iOS 18. An app that wants the on-device fallback
 needs iOS 26 and Apple Intelligence hardware. Nothing in the design needs
 iOS 27 as a floor.
 
-Two version-specific details for the adapter:
+Two version-specific details for the adapter, checked against the Xcode
+26.6 SDK (FoundationModels module 1.5.2) on 2026-09-19:
 
-- Errors arrive as `LanguageModelSession.GenerationError` on iOS 26 and as
-  `LanguageModelError` on iOS 27, where the older type is deprecated. The
-  adapter maps both into `DecisionError`.
-- Token usage on `LanguageModelSession.Response` may not exist on iOS 26.0;
-  `tokenCount(for:)` and `contextSize` arrived in iOS 26.4. Confirm at build
-  time. If usage is unavailable, the adapter reports zero and marks the
-  `Usage` as estimated.
+- That SDK has none of the iOS 27 surface: no `LanguageModel` protocol, no
+  `PrivateCloudComputeLanguageModel`, no `LanguageModelError`. The generic
+  initializer waits for an Xcode 27 SDK. Until then the adapter has the
+  `SystemLanguageModel` initializer only, and errors arrive as
+  `LanguageModelSession.GenerationError`.
+- No token-usage API exists on `LanguageModelSession` or its `Response`.
+  The adapter estimates `inputTokens` with `tokenCount(for:)` (26.4 and
+  later) and reports `outputTokens` as 0. `contextSize` is back-deployed
+  and returns 4096 before 26.4; the on-device model reports 4096.
 
 ## 16. Later extensions
 
