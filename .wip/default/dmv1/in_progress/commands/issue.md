@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-19T01:01:39-04:00
-updated: 2026-09-19T01:01:39-04:00
+updated: 2026-09-19T04:53:03-04:00
 blocked-on:
   - macros
 may-unblock:
@@ -33,3 +33,9 @@ wip/macros (blocker).
 - [ ] Unchosen cases' arguments are not decoded (fake answers for them may be absent).
 - [ ] Diagnostics for cases whose payload is not a single `Decision` struct.
 - [ ] `DESIGN.md` documents the enum form.
+
+---
+
+_📝 Noted on 2026-09-19 04:53:03-04:00 @ git:4330fb9+local_
+
+Design decision for the enum form (recorded here, DESIGN.md 16 to follow with the code): an enum cannot store a projection, so @Decision on an enum generates a nested enum Kind (an options enum over the case names, criteria from @Criterion) and a nested struct Answered: Decision that holds $kind: Choice<Kind> and the built command; the enum itself conforms to Askable with Projection == Answered and read gives the enum value. DecisionSession gains decide/respond overloads for any Askable whose Projection is a Decision, so let command: Command = try await session.decide(about:) works and respond returns DecisionResponse<Command.Answered>. The choice question text comes from @Decision("…") on the enum. Only the chosen case's payload is decoded; answers carries the kind record plus the chosen payload's answers prefixed by the case name.

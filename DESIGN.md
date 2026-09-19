@@ -188,10 +188,41 @@ struct Intake {
 }
 ```
 
+**Enums.** `@Decision` on an enum asks which case applies and, in the
+same request, every case's arguments; only the chosen case's arguments
+are decoded. This is the Jev function-calling recipe in the shape Apple
+gives `@Generable` enums with associated values.
+
+```swift
+@Decision("Which command does the user want?")
+enum Command {
+    @Criterion("Plot a chart of one symbol")  case plot(PlotArguments)   // a @Decision struct
+    @Criterion("Set a price alert")           case alert(AlertArguments)
+    @Criterion("Do nothing")                  case cancel
+}
+
+let command: Command = try await session.decide(about: request)
+let answered = try await session.respond(Command.self, about: request).decision
+answered.$kind.confidence
+```
+
+A case has no payload or exactly one unlabeled payload whose type is a
+`Decision`. The macro generates a nested `Kind`, an options enum over the
+case names with the `@Criterion` texts, and a nested `Answered: Decision`
+that holds `$kind: Choice<Kind>` and the built `command`. The enum itself
+conforms to `Askable` with `Projection == Answered`, so it nests in other
+decisions like any leaf and `session.decide` returns the plain enum value
+through two overloads that accept any `Askable` whose projection is a
+`Decision`. Question ids are `kind` and `<case>.<argument>`. An enum can
+hold no stored projection, so the `Answered` struct is where the
+probabilities live; `respond` returns it. A raw-value enum, a labeled or
+multiple payload, an enum with no cases, and `@Decision` on an enum
+without its question text are errors; so is question text on a struct.
+
 ### 5.2 `@Ask`
 
-One marker, three question kinds. The declared type selects the kind, in the
-same way that `@Guide` on an `Int` or an enum yields a different schema.
+One marker. The declared type selects the question kind, in the same way
+that `@Guide` on an `Int` or an enum yields a different schema.
 
 | Declared type | Question kind | Projection `$name` |
 |---|---|---|
@@ -199,7 +230,9 @@ same way that `@Guide` on an `Int` or an enum yields a different schema.
 | `T` where `T: RatingLevel` | score over ordered levels | `Rating<T>` |
 | `Bool` | yes/no | `Verdict` |
 | `T?` for any of the above | same kind, gated on confidence | same as above |
+| `Set<T>` where `T: ChoiceOption & CaseIterable` | one yes/no per case (fan-out) | `FanOut<T>` |
 | `D` where `D: Decision` | nested question set | none; use `name.$field` |
+| `E` where `E` is a `@Decision` enum | a choice over the cases plus every case's arguments | `E.Answered` |
 
 Forms:
 
@@ -221,6 +254,9 @@ var totalsMatch: Bool        // structured instructions, as Jev accepts
 
 @Ask()
 var bug: BugReport           // nested decision; no question text of its own
+
+@Ask("Does the request mention {option}?", minimumProbability: 0.7)
+var symbols: Set<Symbol>     // one yes/no per case; {option} names each case's criterion
 ```
 
 An `Optional` property must give `minimumConfidence`. A threshold is a
@@ -267,6 +303,8 @@ public struct Inquiry: Sendable {        // what @Ask's arguments become
 | an `@Levels` enum | `Rating<Self>` | the `@Levels` macro emits the `typealias` on the concrete type |
 | `Bool` | `Verdict` | the framework |
 | `Optional<W>` where `W: Askable` | `W.Projection`; adds `read(_:minimumConfidence:)` | the framework |
+| `Set<T>` where `T: ChoiceOption & CaseIterable` | `FanOut<T>`, one `Verdict` per case under `id.optionID`; adds `read(_:minimumProbability:)`; the plain `Set` holds the cases at or above 0.5 | the framework |
+| a `@Decision` enum | its nested `Answered` struct, a `Decision` that holds the `Choice` over the cases and the chosen case's arguments | the `@Decision` macro |
 | a `Decision` | `Self`; `questions` returns `Self.questions.prefixed(id)`, `projection` returns `try Self(answers: answers.scoped(to: id))`, `answers` returns `value.answers.prefixed(id)` | the framework: `Decision` refines `Askable`, and an extension on `Decision` supplies the members |
 
 The `typealias` must sit on the concrete enum. A default in a protocol
@@ -562,6 +600,13 @@ public final class DecisionSession: Sendable {
     public func respond<D: Decision>(_ type: D.Type = D.self,
                                      about state: some StateRepresentable,
                                      options: DecisionOptions? = nil) async throws -> DecisionResponse<D>
+
+    // Any Askable whose projection is a Decision, such as a @Decision enum:
+    // the same two calls, returning the plain value or its projection.
+    public func decide<A: Askable>(_ type: A.Type = A.self, about state: some StateRepresentable,
+                                   options: DecisionOptions? = nil) async throws -> A where A.Projection: Decision
+    public func respond<A: Askable>(_ type: A.Type = A.self, about state: some StateRepresentable,
+                                    options: DecisionOptions? = nil) async throws -> DecisionResponse<A.Projection> where A.Projection: Decision
 
     // Run-time questions (section 9).
     public func decide(_ questionnaire: Questionnaire,
@@ -1148,19 +1193,22 @@ Two version-specific details for the adapter, checked against the Xcode
   later) and reports `outputTokens` as 0. `contextSize` is back-deployed
   and returns 4096 before 26.4; the on-device model reports 4096.
 
-## 16. Later extensions
+## 16. Extensions
+
+All four are built.
 
 - **Set fan-out.** `@Ask("Does the request mention {option}?") var symbols: Set<Symbol>`
-  expands to one yes/no question per case, with `{option}` replaced by the
-  case's criterion summary. `Projection` is `FanOut<Symbol>`, a
-  `[Symbol: Verdict]` with a `members(atLeast:)` accessor; the plain `Set`
-  holds the cases with probability at or above 0.5, or above a
-  `minimumProbability:` argument.
-- **Commands as enums.** `@Decision enum Command { case plot(symbol: Symbol, window: Window); case alert(threshold: Level) }`
-  becomes one choice over cases plus argument questions for every case in
-  one request. The framework reads only the chosen case's arguments. This is
-  the Jev function-calling recipe expressed the way Apple expresses
-  `@Generable` enums with associated values.
+  expands to one yes/no question per case under `symbols.<optionID>`, with
+  `{option}` replaced by the case's criterion summary in every string leaf
+  of the instructions. The projection is `FanOut<Symbol>`, a
+  `[Symbol: Verdict]` with a subscript, `members(atLeast:)`, and a
+  `quality`; the plain `Set` holds the cases at or above 0.5, or above a
+  `minimumProbability:` argument, which only a set accepts. A `Set<T>?`
+  does not compile.
+- **Commands as enums.** `@Decision("…") enum Command` with one `Decision`
+  payload per case, as section 5.1 describes: one choice over the cases
+  plus every case's arguments in one request, only the chosen case
+  decoded, the probabilities on the nested `Answered` projection.
 - **Hierarchical choice.** `DecisionSession.classify(_:instructions:about:beamWidth:maxDepth:options:)`
   walks a tree of `OptionTree` nodes over any `ChoiceOption` with beam
   search, one request per depth, as in the Jev hierarchical classification

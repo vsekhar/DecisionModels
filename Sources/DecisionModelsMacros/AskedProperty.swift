@@ -16,8 +16,10 @@ struct AskedProperty {
     let access: String
     /// The `Inquiry(...)` the questionnaire asks with.
     let inquiry: String
-    /// The threshold, when the marker gives one.
+    /// The confidence threshold, when the marker gives one.
     let minimumConfidence: String?
+    /// The per-option probability threshold a set reads through.
+    let minimumProbability: String?
 
     /// The peer that holds the rich answer. A `$` name takes no backticks,
     /// because the `$` already keeps it apart from every keyword.
@@ -75,6 +77,9 @@ extension AskedProperty {
         if marks.instructions == nil, let branch = marks.ifTrue ?? marks.ifFalse {
             return fail(.nestedTakesNoBranches, at: branch)
         }
+        if marks.minimumConfidence != nil, let probability = marks.minimumProbability {
+            return fail(.oneThresholdOnly, at: probability)
+        }
         let type = annotation.type
         if let unwrapped = type.as(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
             return fail(
@@ -92,7 +97,8 @@ extension AskedProperty {
             type: type.trimmedDescription,
             access: accessPrefix(of: variable.modifiers),
             inquiry: marks.inquiry,
-            minimumConfidence: marks.minimumConfidence?.trimmedDescription
+            minimumConfidence: marks.minimumConfidence?.trimmedDescription,
+            minimumProbability: marks.minimumProbability?.trimmedDescription
         )
     }
 
@@ -135,6 +141,7 @@ extension AskedProperty {
     private struct Marks {
         var instructions: ExprSyntax?
         var minimumConfidence: ExprSyntax?
+        var minimumProbability: ExprSyntax?
         var ifTrue: ExprSyntax?
         var ifFalse: ExprSyntax?
 
@@ -144,6 +151,7 @@ extension AskedProperty {
                 switch argument.label?.text {
                 case nil, "instructions": instructions = argument.expression
                 case "minimumConfidence": minimumConfidence = argument.expression
+                case "minimumProbability": minimumProbability = argument.expression
                 case "ifTrue": ifTrue = argument.expression
                 case "ifFalse": ifFalse = argument.expression
                 default: continue

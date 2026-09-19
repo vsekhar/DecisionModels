@@ -55,6 +55,25 @@ public macro Ask(
     ifFalse: Criterion? = nil
 ) = #externalMacro(module: "DecisionModelsMacros", type: "AskMacro")
 
+/// Asks one question per option of a set and keeps the options the model is
+/// sure enough about. The property type must be a `Set`, because only a set
+/// fans out into one yes or no question per case.
+@attached(peer, names: prefixed(`$`))
+@attached(accessor)
+public macro Ask(
+    _ instructions: State,
+    minimumProbability: Double
+) = #externalMacro(module: "DecisionModelsMacros", type: "AskMacro")
+
+/// Asks one labelled question per option of a set and keeps the options the
+/// model is sure enough about.
+@attached(peer, names: prefixed(`$`))
+@attached(accessor)
+public macro Ask(
+    instructions: State,
+    minimumProbability: Double
+) = #externalMacro(module: "DecisionModelsMacros", type: "AskMacro")
+
 /// Asks a nested decision, which brings its own questions.
 @attached(peer, names: prefixed(`$`))
 @attached(accessor)

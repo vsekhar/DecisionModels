@@ -40,9 +40,15 @@ public struct AskMacro: PeerMacro, AccessorMacro {
             return AskedProperty.takesAccessors(declaration) ? ["get { fatalError() }"] : []
         }
 
+        // Only `Optional` has the two-argument read on confidence and only
+        // `Set` the one on probability, so a threshold on any other property
+        // fails to type-check at the use site, which is the diagnostic we
+        // want. The macro writes what the marker says and checks no types.
         let read: String
         if let threshold = property.minimumConfidence {
             read = "\(property.type).read(\(property.peer), minimumConfidence: \(threshold))"
+        } else if let threshold = property.minimumProbability {
+            read = "\(property.type).read(\(property.peer), minimumProbability: \(threshold))"
         } else {
             read = "\(property.type).read(\(property.peer))"
         }

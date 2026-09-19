@@ -80,6 +80,12 @@ extension DecisionMacroDiagnostic {
         )
     }
 
+    static let oneThresholdOnly = Self(
+        "Give minimumConfidence or minimumProbability, not both. "
+            + "An optional gates on confidence; a set gates on the probability of each option.",
+        id: "oneThresholdOnly"
+    )
+
     static let nestedTakesNoBranches = Self(
         "@Ask() asks a nested decision, which takes no ifTrue or ifFalse.",
         id: "nestedTakesNoBranches"
