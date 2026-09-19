@@ -1,8 +1,10 @@
 # DecisionModels: a Swift framework for decision models
 
-Status: proposal, revision 2, 2026-09-19. Revision 2 fixes the findings of
-an independent verification pass, which also confirmed the `$` projection
-mechanism on Swift 6.3.3 by building the macro.
+Status: approved design, revision 3, 2026-09-19. Revision 2 fixed the
+findings of an independent verification pass, which also confirmed the `$`
+projection mechanism on Swift 6.3.3 by building the macro. Revision 3
+records the approved decisions (section 17) and platform minimums (section
+15.1).
 
 ## 1. Goal
 
@@ -962,6 +964,31 @@ The core and the Jev provider have no Apple-only dependencies and build on
 Linux for server-side Swift. Only `DecisionModelsApple` needs
 FoundationModels.
 
+### 15.1 Platform minimums
+
+| Target | Minimum | Reason |
+|---|---|---|
+| `DecisionModels`, `DecisionModelsTypeSafe`, `DecisionModelsTesting` | iOS 18, macOS 15, Linux | `Mutex` from the Synchronization module; macros need Swift 5.9 |
+| `DecisionModelsApple` | iOS 26, macOS 26 | FoundationModels: `SystemLanguageModel`, `DynamicGenerationSchema`, `respond(to:schema:)`, `GenerationOptions(temperature:)`, `Availability` are all iOS 26 |
+| `GuidedGenerationModel.init(_: some LanguageModel)` | iOS 27, macOS 27 | the `LanguageModel` protocol, `PrivateCloudComputeLanguageModel`, and third-party MLX and Core AI models arrived in iOS 27 |
+
+`Package.swift` declares iOS 18 and macOS 15. The public types in
+`DecisionModelsApple` carry `@available(iOS 26, macOS 26, *)`, and the
+generic initializer carries `@available(iOS 27, macOS 27, *)`. An app that
+only uses Jev can ship on iOS 18. An app that wants the on-device fallback
+needs iOS 26 and Apple Intelligence hardware. Nothing in the design needs
+iOS 27 as a floor.
+
+Two version-specific details for the adapter:
+
+- Errors arrive as `LanguageModelSession.GenerationError` on iOS 26 and as
+  `LanguageModelError` on iOS 27, where the older type is deprecated. The
+  adapter maps both into `DecisionError`.
+- Token usage on `LanguageModelSession.Response` may not exist on iOS 26.0;
+  `tokenCount(for:)` and `contextSize` arrived in iOS 26.4. Confirm at build
+  time. If usage is unavailable, the adapter reports zero and marks the
+  `Usage` as estimated.
+
 ## 16. Later extensions
 
 - **Set fan-out.** `@Ask("Does the request mention {option}?") var symbols: Set<Symbol>`
@@ -981,27 +1008,24 @@ FoundationModels.
 - **Composite scores.** A small weighted-sum helper over `Rating.normalized`
   values, with the weights visible in code.
 
-## 17. Decisions to make
+## 17. Resolved decisions
 
-1. `Rating.value` as the most likely level, with `score` as the reported
-   expected value. The alternative is the level nearest the expected value.
-   Argmax is recommended because it matches `Choice` and is what the
-   distribution says is most likely.
-2. The computed-confidence formulas in section 6.1 for models that report
-   none. The rating formula is chosen to match Jev's published example; the
-   choice formula is a defensible default with no such anchor. Both are
-   overridable only by changing the framework, on purpose.
-3. One `@Ask` with the kind resolved through `Askable`, against three
-   markers. One is recommended; it is what `@Guide` does and there is less to
-   learn. The `Askable` protocol is the price, and it is internal to the
-   expansion.
-4. `decide` returns the decision and `respond` returns the envelope. The
-   alternative is Apple's single `respond` with `.content`. Two methods are
-   recommended because direct use in code is the point of a decision model.
-5. Provider type name: `Jev` against `TypeSafeModel`. `Jev` is recommended;
-   it names the model, as `SystemLanguageModel` does.
+Approved 2026-09-19.
 
-Resolved: the `$` projection mechanism is confirmed to compile (section 12).
+1. `Rating.value` is the most likely level. `Rating.score` is the reported
+   expected value. They can differ on bimodal distributions, and both are
+   visible.
+2. When a model reports no confidence, the framework computes it with the
+   fixed per-kind formulas in section 6.1. The rating formula matches Jev's
+   published example. The formulas are not configurable.
+3. One `@Ask` marker. The question kind is resolved at type-check time
+   through `Askable`, not in the macro.
+4. `decide` returns the decision. `respond` returns the envelope with usage,
+   identity, request id, and duration.
+5. The hosted provider type is named `Jev`.
+6. The `$` projection mechanism is confirmed to compile (section 12).
+7. Platform minimums are as given in section 15. The Apple adapter targets
+   iOS 26; only the generic `LanguageModel` initializer needs iOS 27.
 
 ## 18. Plan
 
