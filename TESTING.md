@@ -90,7 +90,47 @@ team?.bands(escalateBelow: 0.5, confirmBelow: 0.9)
 
 Models in one evaluation need distinct identities.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push, on pull requests from forks,
+and on demand. The README badge shows its result on `main`.
+
+| Job | Runner | What it runs |
+|---|---|---|
+| macOS tests | `macos-26`, Xcode 26.6 | the offline suite with warnings as errors, then the Jev live suite |
+| iOS build | `macos-26`, Xcode 26.6 | a build of every product for the iOS Simulator |
+
+The Jev step reads the repository secret `TYPESAFE_API_KEY`. Set it once
+from the package root. The first form prompts for the value, so paste the
+key:
+
+```sh
+gh secret set TYPESAFE_API_KEY
+```
+
+The second form sets every variable in `.env` as a secret. Use it only if
+`.env` holds nothing else:
+
+```sh
+gh secret set -f .env
+```
+
+Without the secret, the Jev step fails, as the live suite does locally
+without the key.
+
+A pull request from a branch in this repository runs on its push, not
+again as a pull request. A pull request from a fork runs the offline suite
+and the iOS build but skips the Jev step, because forks get no secrets.
+
+The Apple live suite does not run in CI. GitHub's macOS runners are virtual
+machines, and Apple Intelligence does not run in one. Run that suite on a
+Mac with Apple Intelligence turned on, as described above.
+
+The runner must be macOS 26: the Apple tests check the OS at run time and
+record a failure on an older one.
+
 ## Linux
 
 The core, TypeSafe, and testing targets are written to build on Linux, but
-the build has not been verified yet (see `wip show linux`).
+the build has not been verified yet (see `wip show linux`). CI will gain a
+Linux job when that check passes.

@@ -1,5 +1,7 @@
 # DecisionModels
 
+[![CI](https://github.com/vsekhar/DecisionModels/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vsekhar/DecisionModels/actions/workflows/ci.yml)
+
 Typed questions for decision models, in Swift.
 
 A decision model does not write text. It reads some state, answers a fixed

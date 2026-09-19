@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-19T14:50:44-04:00
-updated: 2026-09-19T14:50:44-04:00
+updated: 2026-09-19T14:52:44-04:00
 ---
 
 # Add CI with the Jev live suite on every push
@@ -26,3 +26,9 @@ Decided on 2026-09-19. Jev is cheap and fast, so the live Jev suite runs on ever
 - [ ] Every command the workflow runs has passed once on the development Mac.
 - [ ] The workflow file is valid YAML with the expected triggers, jobs, and conditions.
 - [ ] README carries the badge; TESTING.md explains what CI runs, where the key comes from, and why the Apple live suite is not in CI.
+
+---
+
+_📝 Noted on 2026-09-19 14:52:44-04:00 @ git:c9add7d+local_
+
+Done. .github/workflows/ci.yml: macOS job on macos-26 with Xcode 26.6 pinned and .build cached on Package.resolved runs the offline suite with warnings as errors, then the Jev live suite with the same flags (no rebuild between steps, verified); iOS job builds DecisionModels-Package for the iOS Simulator. Jobs run on every push and on fork pull requests only; the Jev step skips pull request events because forks get no secrets. Verified on the development Mac: iOS simulator build succeeded with no package warnings; offline step 390 tests passed; Jev step 2 tests passed. YAML parsed with Ruby; actionlint is not installed, so GitHub validates the workflow on first push. README badge and TESTING.md CI section added. Not pushed; the TYPESAFE_API_KEY repository secret must be set by the user.
