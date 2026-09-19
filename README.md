@@ -1,6 +1,7 @@
 # DecisionModels
 
 [![CI](https://github.com/vsekhar/DecisionModels/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vsekhar/DecisionModels/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/vsekhar/DecisionModels/branch/main/graph/badge.svg)](https://codecov.io/gh/vsekhar/DecisionModels)
 
 Typed questions for decision models, in Swift.
 

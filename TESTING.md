@@ -93,34 +93,58 @@ Models in one evaluation need distinct identities.
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every push, on pull requests from forks,
-and on demand. The README badge shows its result on `main`.
+and on demand. The CI badge shows its result on `main`, and the codecov
+badge shows the line coverage of `main`.
 
 | Job | Runner | What it runs |
 |---|---|---|
-| macOS tests | `macos-26`, Xcode 26.6 | the offline suite with warnings as errors, then the Jev live suite |
+| macOS tests | `macos-26`, Xcode 26.6 | the offline suite and the Jev live suite in one run, with warnings as errors and coverage on, then the coverage upload |
 | iOS build | `macos-26`, Xcode 26.6 | a build of every product for the iOS Simulator |
 
-The Jev step reads the repository secret `TYPESAFE_API_KEY`. Set it once
-from the package root. The first form prompts for the value, so paste the
-key:
+The tests run in one `swift test` run because each run with coverage
+clears the coverage of the run before it. To reproduce the CI step:
 
 ```sh
-gh secret set TYPESAFE_API_KEY
+set -a; . ./.env; set +a
+swift test -Xswiftc -warnings-as-errors --enable-code-coverage --skip GuidedGenerationLiveTests
 ```
 
-The second form sets every variable in `.env` as a secret. Use it only if
-`.env` holds nothing else:
+The coverage report holds only the package's own sources. Tests,
+swift-syntax, and the generated test runner are left out, because the
+export names the `Sources` folder:
 
 ```sh
-gh secret set -f .env
+bin=$(swift build --show-bin-path)
+xcrun llvm-cov export -format=lcov \
+  -instr-profile "$bin/codecov/default.profdata" \
+  "$bin/DecisionModelsPackageTests.xctest/Contents/MacOS/DecisionModelsPackageTests" \
+  "$PWD/Sources" > coverage.lcov
 ```
 
-Without the secret, the Jev step fails, as the live suite does locally
-without the key.
+CI coverage leaves out the Apple live suite, so it understates the Apple
+adapter: on 2026-09-19 the adapter stood at 69% of lines in CI and 92% with
+the live suite. The whole package stood at 91.7% in CI and 95.1% with it.
+
+Two repository secrets feed the job:
+
+- `TYPESAFE_API_KEY` for the Jev live suite. Set it once from the package
+  root. The first form prompts for the value, so paste the key. The second
+  sets every variable in `.env` as a secret, so use it only if `.env` holds
+  nothing else.
+
+  ```sh
+  gh secret set TYPESAFE_API_KEY
+  gh secret set -f .env
+  ```
+
+  Without it, the Jev suite fails, as it does locally without the key.
+- `CODECOV_TOKEN` for the upload. A failed upload fails the job, so a bad
+  token shows at once.
 
 A pull request from a branch in this repository runs on its push, not
 again as a pull request. A pull request from a fork runs the offline suite
-and the iOS build but skips the Jev step, because forks get no secrets.
+and the iOS build but skips the Jev suite and the upload, because forks get
+no secrets.
 
 The Apple live suite does not run in CI. GitHub's macOS runners are virtual
 machines, and Apple Intelligence does not run in one. Run that suite on a

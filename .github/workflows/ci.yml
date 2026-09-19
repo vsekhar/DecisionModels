@@ -1,9 +1,10 @@
 name: CI
 
-# Every push runs everything, the Jev live suite included. A pull request
-# from a branch in this repository already ran on its push, so the jobs run
-# on a pull request only when it comes from a fork. A fork gets no secrets,
-# so its run skips the Jev step.
+# Every push runs everything, the Jev live suite included, and uploads test
+# coverage to Codecov. A pull request from a branch in this repository
+# already ran on its push, so the jobs run on a pull request only when it
+# comes from a fork. A fork gets no secrets, so its run skips the Jev suite
+# and the upload.
 #
 # The Apple live suite is not here: GitHub's macOS runners are virtual
 # machines, and Apple Intelligence does not run in one. See TESTING.md.
@@ -37,22 +38,45 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s "$XCODE_APP"
 
-      # swift-syntax is the slow part of a cold build.
+      # swift-syntax is the slow part of a cold build. Coverage changes the
+      # compiler flags, so the key names it.
       - name: Cache the build
         uses: actions/cache@v6
         with:
           path: .build
-          key: spm-${{ runner.os }}-${{ runner.arch }}-xcode26.6-${{ hashFiles('Package.resolved') }}
+          key: spm-${{ runner.os }}-${{ runner.arch }}-xcode26.6-coverage-${{ hashFiles('Package.resolved') }}
 
-      - name: Offline tests
-        run: swift test -Xswiftc -warnings-as-errors --skip JevLive --skip GuidedGenerationLiveTests
-
-      # Same flags as the step above, so this step reuses its build.
-      - name: Jev live tests
-        if: github.event_name != 'pull_request'
+      # One run, because each coverage run clears the one before it. A fork's
+      # pull request has no key, so it skips the Jev suite.
+      - name: Tests
         env:
           TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
-        run: swift test -Xswiftc -warnings-as-errors --filter JevLive
+          SKIP_JEV: ${{ github.event_name == 'pull_request' }}
+        run: |
+          skip=(--skip GuidedGenerationLiveTests)
+          if [ "$SKIP_JEV" = "true" ]; then skip+=(--skip JevLive); fi
+          swift test -Xswiftc -warnings-as-errors --enable-code-coverage "${skip[@]}"
+
+      # Naming the Sources folder keeps the report to the package's own code:
+      # no tests, no swift-syntax, no generated test runner.
+      - name: Export coverage
+        if: github.event_name != 'pull_request'
+        run: |
+          bin=$(swift build --show-bin-path)
+          xcrun llvm-cov export -format=lcov \
+            -instr-profile "$bin/codecov/default.profdata" \
+            "$bin/DecisionModelsPackageTests.xctest/Contents/MacOS/DecisionModelsPackageTests" \
+            "$PWD/Sources" \
+            > coverage.lcov
+
+      - name: Upload coverage
+        if: github.event_name != 'pull_request'
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.lcov
+          disable_search: true
+          fail_ci_if_error: true
 
   ios:
     name: iOS build

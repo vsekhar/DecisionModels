@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-19T15:36:49-04:00
-updated: 2026-09-19T15:36:49-04:00
+updated: 2026-09-19T15:38:23-04:00
 ---
 
 # Report CI coverage to Codecov with a README badge
@@ -33,3 +33,9 @@ wip/jso (CI), wip/yam (Node 24 actions), wip/ajp (Jev per-attempt timeout; a Jev
 - [ ] The workflow parses; fork pull requests skip the Jev suite and the upload.
 - [ ] README carries the Codecov badge; TESTING.md explains the coverage step.
 - [ ] After a push, Codecov receives the report and the badge shows a percentage.
+
+---
+
+_📝 Noted on 2026-09-19 15:38:23-04:00 @ git:9e8693f+local_
+
+Done. The two test steps are one: swift test -Xswiftc -warnings-as-errors --enable-code-coverage --skip GuidedGenerationLiveTests, plus --skip JevLive on pull request events. The cache key names coverage. Export names the Sources folder as a positional llvm-cov argument instead of an ignore regex: the regex depended on the build folder being called .build and let 205 swift-syntax files through under a scratch path. Verified on the development Mac: the exact test command passed (392 tests, Jev live included); the lcov export holds 63 files, all under Sources, 3401 of 3708 lines, 91.7%, matching the earlier measurement. codecov/codecov-action@v7 (v7.1.1, composite) uploads on push events with CODECOV_TOKEN, disable_search, fail_ci_if_error. README carries the codecov badge; TESTING.md CI section rewritten. Not pushed: the last criterion, Codecov receiving a report and the badge showing a percentage, is confirmed on the first run after a push.
