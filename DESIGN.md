@@ -795,17 +795,33 @@ public enum DecisionModelAvailability: Sendable {
 
 **`Jev`** (module `DecisionModelsTypeSafe`). Maps a request one-to-one onto
 `POST /v1/systemone`: choice, score, and noul; instructions and criteria as
-strings or JSON; `jev-latest`, `jev-preview`, or a pinned version. Reads
-`TYPESAFE_API_KEY` when no key is passed. Retries 429 and 529 with backoff
-through a `RetryPolicy`. Reports `.calibrated`, 255 options, 10 levels, 64k
-context. Keeps the returned `choice`, `score`, and `confidence` fields
-verbatim in the answer records.
+strings or JSON (a criterion with only a summary goes as a string; a
+richer one as an object with `what` or `summary`, `not_for`, `examples`,
+`signals`); `jev-latest`, `jev-preview`, or a pinned version. Reads
+`TYPESAFE_API_KEY` when no key is passed; a missing or blank key makes the
+model unavailable with `.notConfigured`. Reports `.calibrated`, 255
+options, 10 levels, 64k context, no repeated samples. Keeps the returned
+`choice`, `score`, and `confidence` fields verbatim in the answer records.
+`models()` lists the account's models as `ModelCard` values.
 
 ```swift
 Jev.latest
 Jev.preview
-Jev(version: "jev-1.13.0", apiKey: key, retry: .default)
+Jev(version: "jev-1.13.0", apiKey: key, retry: .default, transport: URLSessionTransport())
 ```
+
+Transport and waiting: `HTTPTransport` is a one-method protocol over
+`URLRequest`, with `URLSessionTransport` as the default, so tests script
+responses without a network. `RetryPolicy` (`maxRetries`, `initialBackoff`,
+`maximumBackoff`, `multiplier`; `.default`, `.none`) retries 429, 529, and
+transport failures with capped doubling backoff; a `Retry-After` header is
+honored but never beyond `maximumBackoff`. `DecisionRequest.timeout` is a
+deadline for the whole call, attempts and waits included, not for one
+attempt. Cancellation is never retried and surfaces as `CancellationError`,
+not as a `DecisionError`. Status codes map to `DecisionError`: 401
+`.unauthorized`, 422 `.invalidQuestion` with the server's message, 429
+`.rateLimited(retryAfter:)` and 529 `.overloaded` after retries; anything
+else travels as `.transport(JevServerError)`.
 
 **`GuidedGenerationModel`** (module `DecisionModelsApple`). On iOS 26 and
 macOS 26 it wraps `SystemLanguageModel`. On iOS 27 and macOS 27 it also

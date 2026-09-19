@@ -2,7 +2,7 @@
 priority: p1
 type: task
 created: 2026-09-19T01:01:39-04:00
-updated: 2026-09-19T01:01:39-04:00
+updated: 2026-09-19T02:56:27-04:00
 blocked-on:
   - session
 may-unblock:
@@ -39,3 +39,9 @@ wip/session (blocker), wip/docs (documents how to run live tests).
 - [ ] 401 → `.unauthorized`, 422 → `.invalidQuestion`, 429 → retried then `.rateLimited`, 529 → retried then `.overloaded`; retry count and backoff are tested with a fake transport.
 - [ ] Missing key → `availability == .unavailable(.notConfigured)` and `decide` throws `.unavailable`.
 - [ ] Live tests pass with `set -a; . ./.env; set +a; swift test --filter Jev` and fail without the key.
+
+---
+
+_📝 Noted on 2026-09-19 02:56:27-04:00 @ git:4315d9b+local_
+
+Done in a worktree, merged by copy. Jev provider with HTTPTransport seam, RetryPolicy, wire types and mapping, error mapping, models(). Verifier: all 5 criteria hold; live run passed. Its should-fixes fixed: Retry-After capped by maximumBackoff; DecisionRequest.timeout is a whole-call deadline (injected clock for tests, mutation-proven); cancellation surfaces as CancellationError; FoundationNetworking guard in WireTests. Live tests pass from main after the merge (2 requests). DESIGN.md 10.1 updated.
