@@ -2,7 +2,7 @@
 priority: p1
 type: task
 created: 2026-09-19T01:01:39-04:00
-updated: 2026-09-19T01:01:39-04:00
+updated: 2026-09-19T01:29:08-04:00
 may-unblock:
   - session
   - composite
@@ -48,3 +48,9 @@ wip/dmv1 (parent), wip/session (next; adds `DecisionModel`, `DecisionSession`, `
 - [ ] `prefixed` and `scoped` round-trip.
 - [ ] `StateBuilder` handles `if let` and `try Field(_:encoding:)`.
 - [ ] `band(escalateBelow:confirmBelow:)` returns the right band at the boundaries (below low is escalate; at or above high is act).
+
+---
+
+_📝 Noted on 2026-09-19 01:29:08-04:00 @ git:c886133+local_
+
+Done. Package skeleton with all targets (swift-syntax 602, tools 6.2, iOS 18/macOS 15), core value layer, 63 tests. Verifier: all criteria hold; three should-fix input-hardening findings fixed in the same change: duplicate option ids now throw invalidQuestion (reader) and Choice.record sums duplicates; negative/NaN/empty/zero-sum probabilities, out-of-range reported confidence and verdict probability throw malformedResponse; clamped() maps NaN to 0; AnswerRecord.confidence is 0 for an empty map. Distribution.init now preconditions non-empty. Question gained an id requirement (default spec.id). Accepted deviations from DESIGN.md, now recorded there: Question.answer(from:quality:), StateRepresentable: Sendable, Rating.uncertain carries reportedConfidence 0, Answers.prefixed, public memberwise inits, State: ExpressibleByStringInterpolation, [any StateRepresentable] cannot conform (Swift limit; session renders context element-wise). Notes for wip/session: pre-flight should also reject specs with zero options, fewer than two levels, or duplicate option ids via invalidQuestion; RatingLevel.levels/levelIndex are internal on purpose.

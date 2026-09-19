@@ -430,7 +430,19 @@ theirs, and why section 13 ships a calibration report.
   demand a floor.
 - `uncertain` values exist so the plain-value initializer can build the
   below-threshold branch: `TicketTriage(team: nil, ...)` on an optional
-  `team` stores `Choice.uncertain`, which gates to `nil`.
+  `team` stores `Choice.uncertain`, which gates to `nil`. A uniform
+  distribution gives a choice or a verdict confidence 0 by formula, but not
+  a rating (the ordinal formula gives about 0.18 for three levels), so
+  `Rating.uncertain` carries a `reportedConfidence` of 0.
+- The value types have public memberwise initializers so providers and
+  tests can build them. `Distribution` requires at least one entry.
+- The reader that turns records into typed answers throws `DecisionError`
+  on anything a provider must never send: probabilities that are empty,
+  negative, not finite, or sum to zero; a reported confidence or verdict
+  probability outside `0...1`; option ids the question does not know; two
+  options that share an id. Probabilities that do not sum to one are
+  scaled. Ties in `mostLikely` resolve by the option's description text, so
+  the order is stable.
 
 The three-band pattern from the Jev docs, at the call site:
 
@@ -451,7 +463,7 @@ types render into a prompt.
 
 ```swift
 public enum State: Sendable, Hashable, Codable,
-                   ExpressibleByStringLiteral, ExpressibleByDictionaryLiteral, ExpressibleByArrayLiteral {
+                   ExpressibleByStringInterpolation, ExpressibleByDictionaryLiteral, ExpressibleByArrayLiteral {
     case text(String)
     case number(Double)
     case bool(Bool)
@@ -462,10 +474,13 @@ public enum State: Sendable, Hashable, Codable,
     public init(encoding value: some Encodable) throws   // via JSONEncoder
 }
 
-public protocol StateRepresentable {
+public protocol StateRepresentable: Sendable {
     var stateRepresentation: State { get }
 }
-// String, Bool, Int, Double, State, [StateRepresentable], [String: StateRepresentable] conform.
+// String, Bool, Int, Double and State conform. Array and Dictionary<String, _>
+// conform when their element type conforms. The existential
+// [any StateRepresentable] cannot conform (a Swift limit); mixed values use
+// State literals, and the session renders its context element-wise.
 
 @resultBuilder public enum StateBuilder { ... }   // builds State.object; supports if, if let, for
 
@@ -625,6 +640,7 @@ public struct Answers: Sendable, Codable, Hashable {
     public func rating<L: RatingLevel>(_ id: String, as: L.Type) throws -> Rating<L>
     public func verdict(_ id: String) throws -> Verdict
     public func scoped(to prefix: String) -> Answers              // "bug.severity" -> "severity"
+    public func prefixed(_ prefix: String) -> Answers             // the inverse, for nested `answers`
 }
 
 // Typed question values.
@@ -632,7 +648,8 @@ public struct Answers: Sendable, Codable, Hashable {
 public protocol Question: Sendable {
     associatedtype Answer: DecisionModels.Answer
     var spec: QuestionSpec { get }
-    func answer(from record: AnswerRecord) throws -> Answer
+    func answer(from record: AnswerRecord, quality: ProbabilityQuality) throws -> Answer
+    // answer(from:) is a default that assumes .pointEstimate
 }
 
 public struct Choose<Option: ChoiceOption>: Question {   // Answer == Choice<Option>
