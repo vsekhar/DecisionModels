@@ -760,7 +760,7 @@ public struct ModelResponse: Sendable, Codable {
 
 public struct DecisionModelIdentity: Sendable, Codable, Hashable {
     public var provider: String      // "typesafe", "apple", "test"
-    public var name: String          // "jev-1.13.0", "on-device"
+    public var name: String          // "jev-1.13.0", "system-language-model"
 }
 
 public struct DecisionModelCapabilities: Sendable {
@@ -824,32 +824,55 @@ not as a `DecisionError`. Status codes map to `DecisionError`: 401
 else travels as `.transport(JevServerError)`.
 
 **`GuidedGenerationModel`** (module `DecisionModelsApple`). On iOS 26 and
-macOS 26 it wraps `SystemLanguageModel`. On iOS 27 and macOS 27 it also
-accepts any Apple `LanguageModel`, which brings in
-`PrivateCloudComputeLanguageModel` and third-party MLX and Core AI models.
+macOS 26 it wraps `SystemLanguageModel`. On iOS 27 and macOS 27 it will
+also accept any Apple `LanguageModel`, which brings in
+`PrivateCloudComputeLanguageModel` and third-party MLX and Core AI models;
+that initializer waits for an Xcode 27 SDK (section 15.1).
 
 ```swift
 @available(iOS 26, macOS 26, *)
-public init(_ model: SystemLanguageModel)
+public init(_ model: SystemLanguageModel = .default, instructions: String? = nil)
 
-@available(iOS 27, macOS 27, *)
+@available(iOS 27, macOS 27, *)   // not yet built; see 15.1
 public init(_ model: some LanguageModel)
 ```
 
+`instructions` are standing rules the adapter appends to its own task
+instructions in every session. Its identity is `apple` /
+`system-language-model`.
+
 Per request it builds one `DynamicGenerationSchema` object with a property
 per question: a string constrained with `anyOf` over option ids for choice,
-an integer with `range(0...n-1)` for rating, a `Bool` for yes/no. State,
-instructions, and criteria go into the prompt as JSON. One `respond(schema:)`
-call answers the whole batch, so batching survives the change of provider.
+an integer with `range(0...n-1)` for rating, a `Bool` for yes/no. Dotted
+question ids map to safe property names and back. State, instructions, and
+criteria go into the prompt as text and JSON, so the adapter declares
+`structuredCriteria` and `structuredInstructions` true: it renders what
+Jev takes natively, and the caller never knows the difference. One
+`respond(schema:)` call answers the whole batch, so batching survives the
+change of provider. Before it sends, it estimates tokens with
+`tokenCount(for:)` and throws `contextSizeExceeded` when the instructions,
+prompt, and schema would not leave room for the answer (256 tokens or 8
+per question, whichever is larger). `Usage.inputTokens` is that estimate
+times the number of draws; the SDK reports no output tokens.
 
 It declares `probabilityQuality = .sampled(count: .max)` as its ceiling.
-With `samples == 1` a response carries `.pointEstimate`. With `samples = k`
-it runs k generations at non-zero temperature and returns an empirical
-distribution marked `.sampled(count: k)`. This costs k passes and is not
-calibrated, but it gives on-device code a usable uncertainty signal.
-Guardrail hits map to `DecisionError.guardrailViolation` and model refusals
-to `.refused`. Availability maps one-to-one from
-`SystemLanguageModel.Availability`.
+With `samples == 1` a response carries `.pointEstimate` and one-hot
+probabilities over every option and level. With `samples = k` it runs k
+greedy-free generations in sequence, one fresh session each, and returns
+an empirical distribution marked `.sampled(count: k)`. This costs k passes
+and is not calibrated, but it gives on-device code a usable uncertainty
+signal. Draws take no seed: the device rejects most of the declared seed
+range. `DecisionRequest.timeout` is a deadline for the whole call across
+all draws.
+
+Errors map as: guardrail hit `.guardrailViolation`; refusal `.refused`;
+context overflow `.contextSizeExceeded`; rate limit `.rateLimited`; a
+schema the device will not take `.invalidQuestion`; assets not on the
+device `.unavailable(.modelNotReady)`; a busy device `.overloaded`; an
+unusable answer or language `.malformedResponse`; anything else
+`.transport`. Availability maps one-to-one from
+`SystemLanguageModel.Availability`; Apple Intelligence turned off is
+`.notConfigured("Apple Intelligence")`.
 
 **Custom models.** Conform to `DecisionModel` directly. A Core ML classifier
 trained for fixed questions, an in-house server, or another vendor's API each
@@ -1056,10 +1079,10 @@ print(report[Jev.latest.identity]?.question("team")?.brierScore ?? .nan)
 | Verdict | `type: noul`, optional true/false criteria | `Bool` property | any |
 | Batch | one request, parallel evaluation | one schema object, one generation | model decides |
 | Probabilities | calibrated; reported confidence | one-hot, or empirical from k samples; computed confidence | declared in capabilities |
-| Structured criteria and instructions | native JSON | rendered to text | declared in capabilities |
+| Structured criteria and instructions | native JSON | rendered to text; declared as accepted | declared in capabilities |
 | State | string, object, array | JSON in the prompt | any |
-| Limits | 255 options, 2 to 10 levels, 64k tokens | device context size; refuse or split | declared in capabilities |
-| Unavailable | no key, offline, 401 | device not eligible, model not ready | declared |
+| Limits | 255 options, 2 to 10 levels, 64k tokens | 64 options, 2 to 10 levels, the device's context (4096 tokens); refused before sending | declared in capabilities |
+| Unavailable | no key, offline, 401 | device not eligible, Apple Intelligence off, model not ready | declared |
 
 ## 15. Package layout
 
