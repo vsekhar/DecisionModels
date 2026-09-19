@@ -109,17 +109,26 @@ set -a; . ./.env; set +a
 swift test -Xswiftc -warnings-as-errors --enable-code-coverage --skip GuidedGenerationLiveTests
 ```
 
-The Tests step also sets `LLVM_PROFILE_FILE=/dev/null`. Coverage
-instruments the macro plugin, and the compiler runs the plugin in a sandbox
-that allows writes to no folder. A plugin that exits on its own then cannot
-write its coverage file and prints `LLVM Profile Error`. The sandbox allows
-`/dev/null`, and nobody reads the plugin's coverage. SwiftPM sets its own
-value for the test process, so the test coverage does not change.
+The CI build log may show pairs of lines like these:
 
-The CI log may still show `Internal Error: DecodingError` lines during the
-build. The plugin prints them when the compiler sends it a message that
-ends early, and they appear with or without coverage. They do not affect
-the build or the tests.
+```
+Internal Error: DecodingError.dataCorrupted: ... Corrupted JSON. Underlying error: unexpected end of file
+LLVM Profile Error: Failed to write file "default.profraw": Operation not permitted
+```
+
+They are harmless: the build and every test still pass. On the CI runner,
+the compiler sometimes sends a macro plugin a message that ends early. The
+plugin reports it and exits, which gives the first line. This happens with
+or without coverage. With coverage on, SwiftPM instruments the plugin too,
+and on exit it tries to write its coverage file. The compiler runs plugins
+in a sandbox that allows writes to no folder, so that fails, which gives the
+second line. The plugin's coverage is not part of the report.
+
+No environment variable can redirect that file. The compiler starts each
+plugin with an empty environment, so `LLVM_PROFILE_FILE` never reaches it.
+The only switch that removes the second line is `swift test
+--disable-sandbox`, which turns the plugin sandbox off. CI keeps the sandbox
+on, so the macros build under the same sandbox as in users' builds.
 
 The coverage report holds only the package's own sources. Tests,
 swift-syntax, and the generated test runner are left out, because the

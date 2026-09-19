@@ -2,7 +2,7 @@
 priority: p3
 type: task
 created: 2026-09-19T15:56:21-04:00
-updated: 2026-09-19T15:59:53-04:00
+updated: 2026-09-19T16:05:01-04:00
 ---
 
 # Point the macro plugin's coverage file at a sandbox-writable folder
@@ -40,3 +40,9 @@ wip/v5n (coverage in CI).
 _📝 Noted on 2026-09-19 15:59:53-04:00 @ git:5a1d614+local_
 
 Done, with a deviation from the request. No folder is writable from the plugin sandbox: the compiler's profile (swift lib/Basic/Sandbox.cpp) is deny-default plus system.sb, file-read-metadata, dylib reads, and process-exec; system.sb allows data writes only to /dev/null, /dev/zero, /dev/fd, and /dev/dtracehelper. The CI step now sets LLVM_PROFILE_FILE=/dev/null. Evidence: running the instrumented plugin by hand under that profile printed the profile error on both a clean and a truncated end of input, and printed none with the setting; no file was written. SwiftPM sets its own LLVM_PROFILE_FILE for the test process: coverage with and without the setting was identical (63 files, 3388/3708 lines offline) and the test profraw files were still written. The build-time errors did not reproduce in a local build, because there plugins are ended by the compiler rather than exiting on their own. Separate finding: the paired 'Internal Error: DecodingError' lines come from the plugin receiving a message that ends early; they appeared in CI runs without coverage too (13 and 3 times), so this change does not remove them. Not pushed; the last criterion (no LLVM Profile Error in the next CI run) is confirmed after a push.
+
+---
+
+_📝 Noted on 2026-09-19 16:05:01-04:00 @ git:3f2693b+local_
+
+Reopened: the fix did not work. CI run 35466099847 (commit 3f2693b) still printed 4 profile errors, each naming default.profraw, the name the runtime uses when LLVM_PROFILE_FILE is unset; the drop from 27 came from the cached, incremental build starting fewer plugins. Cause: the compiler starts plugins with ExecuteWithPipe(command[0], command) and no env (swift lib/AST/PluginRegistry.cpp:202), which calls posix_spawn with a null envp (lib/Basic/Program.cpp); on macOS that gives the child an empty environment (checked with a small C program on this Mac). So no environment variable reaches a plugin. The earlier local check ran the plugin directly and bypassed the compiler, which is why it passed. The setting is removed and the comments corrected. Remaining option: swift test --disable-sandbox, which SwiftPM turns into the compiler's -disable-sandbox (SwiftModuleBuildDescription.swift:478-485); the plugin would then write default.profraw into its working folder, at the cost of CI no longer building macros under the users' sandbox. Left for the user to decide; otherwise close as won't-fix, noise documented in TESTING.md.
