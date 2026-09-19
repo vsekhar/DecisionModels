@@ -2,7 +2,7 @@
 priority: p3
 type: task
 created: 2026-09-19T15:10:57-04:00
-updated: 2026-09-19T15:10:57-04:00
+updated: 2026-09-19T15:11:11-04:00
 ---
 
 # Move CI actions to Node 24 majors: checkout v7, cache v6
@@ -22,3 +22,9 @@ Breaking changes checked against this workflow: checkout v5 (Node 24; runner 2.3
 - [ ] Every `actions/checkout` reference is `@v7` and the `actions/cache` reference is `@v6`.
 - [ ] The workflow still parses; triggers, jobs, and conditions are unchanged.
 - [ ] The next CI run shows no Node.js 20 warning.
+
+---
+
+_📝 Noted on 2026-09-19 15:11:11-04:00 @ git:32aec56+local_
+
+Done. checkout@v4 -> v7 (two places), cache@v4 -> v6. Both declare node24 in action.yml at those tags. Breaking changes in checkout v5, v6, v7 and cache v5, v6 checked against this workflow; none apply. Workflow re-parsed; triggers, jobs, and conditions unchanged. Not pushed; the last criterion (no Node 20 warning on the next run) is confirmed once the commit runs in CI.
