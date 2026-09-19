@@ -885,13 +885,29 @@ They work on `AnswerRecord` values, which expose confidence and
 probabilities without knowing the application's Swift types.
 
 ```swift
-CascadeModel(first: onDevice, then: Jev.latest, escalateBelow: 0.7)   // any record below the bar re-asks the second model
-ConsensusModel(Jev.latest, samples: 5)          // repeats, merges distributions, marks .sampled, flags flip-flops
-CachedModel(Jev.latest, storage: cache)          // keyed by DecisionRequest hash
+CascadeModel(first: onDevice, then: Jev.latest, escalateBelow: 0.7)   // re-asks only the ids below the bar; merges only those
+ConsensusModel(Jev.latest, samples: 5)          // repeats, averages normalized distributions, marks .sampled, lists disagreements
+CachedModel(Jev.latest, storage: cache)          // keyed on state, questionnaire, samples, and model identity
 RecordingModel(Jev.latest, into: recorder)       // writes DecisionRecord values
 ReplayModel(records: fixtures)                   // serves recorded answers; throws on miss
 ScriptedModel { request in Answers }             // closure-based test double; zero usage
 ```
+
+Details that matter when wrappers nest. `CascadeModel` and
+`ConsensusModel` each have a `decideWithReport(_:)` that returns a
+`CascadeReport` (the escalated ids) or a `ConsensusReport` (the ids whose
+answer changed across runs) beside the response. A cascade's identity
+names both providers and the threshold, so two cascades that differ only
+in the bar do not share a cache entry; a consensus identity carries its
+sample count. `ConsensusModel` runs the inner model once per draw with
+`samples: 1`, uses a per-call `samples` above one in place of its default,
+normalizes each run before averaging, drops reported confidence so the
+section 6.1 formula applies, and keeps `.calibrated` only when every
+calibrated run agreed; with one draw it reports the inner quality
+unchanged. Put a cache outside a consensus, never inside: a cache inside
+serves every draw the same answer. `CacheKey` ignores metadata and timeout.
+`DecisionCache` is a protocol with an in-memory actor implementation that
+evicts oldest first when given a capacity.
 
 ## 11. Errors
 
@@ -1145,9 +1161,17 @@ Two version-specific details for the adapter, checked against the Xcode
   one request. The framework reads only the chosen case's arguments. This is
   the Jev function-calling recipe expressed the way Apple expresses
   `@Generable` enums with associated values.
-- **Hierarchical choice.** A helper that walks a tree of `@Options` enums
-  with beam search, one request per depth, as in the Jev hierarchical
-  classification recipe.
+- **Hierarchical choice.** `DecisionSession.classify(_:instructions:about:beamWidth:maxDepth:options:)`
+  walks a tree of `OptionTree` nodes over any `ChoiceOption` with beam
+  search, one request per depth, as in the Jev hierarchical classification
+  recipe. Every candidate that can still go deeper asks one `Choose` over
+  its children, and all the questions of one depth travel in one request.
+  A node with a single child is taken without a request and without
+  weight. The result is up to `beamWidth` `HierarchicalChoice` values, best
+  first, each with its `path`, its per-step `Choice` values, a `score`
+  that is the geometric mean of the chosen probabilities over the steps
+  that had a real choice, and `reachedLeaf`, which tells a walk cut by
+  `maxDepth` from a finished one.
 - **Composite scores.** `CompositeScore` is a weighted sum over
   `Rating.normalized` values and `Verdict` probabilities, built with
   `Weighted(weight, name, answer)` terms in a result builder. Weights

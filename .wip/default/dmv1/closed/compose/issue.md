@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-19T01:01:39-04:00
-updated: 2026-09-19T01:01:39-04:00
+updated: 2026-09-19T04:52:06-04:00
 blocked-on:
   - session
 may-unblock:
@@ -32,3 +32,9 @@ wip/session (blocker).
 - [ ] Cascade: with a fake first model returning low confidence on one of three ids, only that id is re-asked of the second fake, and the merged answers carry the second's record for it.
 - [ ] Consensus: three fakes' worth of differing one-hot answers average to the expected distribution; `quality == .sampled(count: 3)`.
 - [ ] Cached: second identical request does not reach the inner fake; a different state does.
+
+---
+
+_📝 Noted on 2026-09-19 04:52:06-04:00 @ git:580dc35+local_
+
+Done in a worktree, merged by copy. CascadeModel, ConsensusModel, CachedModel with DecisionCache, CacheKey, InMemoryDecisionCache. Verifier: all criteria hold. Its should-fixes fixed (mutation-proven): consensus normalizes each run before averaging; one draw keeps the inner quality; per-call samples override the wrapper's default; cascade merges only escalated ids; cascade identity names both providers and the threshold so cascades do not share cache entries; reports are CascadeReport and ConsensusReport structs. DESIGN.md 10.2 updated.

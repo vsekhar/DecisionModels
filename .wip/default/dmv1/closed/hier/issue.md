@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-19T01:01:39-04:00
-updated: 2026-09-19T01:01:39-04:00
+updated: 2026-09-19T04:52:06-04:00
 blocked-on:
   - session
 may-unblock:
@@ -32,3 +32,9 @@ wip/session (blocker).
 - [ ] With a fake model scripted per depth, greedy search returns the expected leaf path and score.
 - [ ] Beam width 2 keeps two paths after depth 1 and asks both sibling sets in one request at depth 2 (assert the questionnaire the fake receives).
 - [ ] `maxDepth` stops the walk.
+
+---
+
+_📝 Noted on 2026-09-19 04:52:06-04:00 @ git:580dc35+local_
+
+Done in the compose worktree, merged by copy. OptionTree with a builder, HierarchicalChoice with path, steps, score and reachedLeaf, DecisionSession.classify with beam search and one request per depth. Verifier: all criteria hold. Its notes fixed: a single-child frontier advances without a request and contributes nothing to the score; reachedLeaf tells a maxDepth cut from a finished walk. DESIGN.md 16 updated.
