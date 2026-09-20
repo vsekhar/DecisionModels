@@ -2,7 +2,7 @@
 priority: p2
 type: feature
 created: 2026-09-20T00:17:15-04:00
-updated: 2026-09-20T00:17:15-04:00
+updated: 2026-09-20T03:32:39-04:00
 ---
 
 # OpenRouter alpha provider for the Decisions endpoint
@@ -50,3 +50,9 @@ Confirmed with the user on 2026-09-20:
 _📝 Noted on 2026-09-20 00:17:15-04:00 @ git:2d3633c+local_
 
 Children: wip/9du moves HTTPTransport, RetryPolicy, and the retry loop (HTTPClient) into the core module; wip/sxs writes the provider against them and is blocked on wip/9du.
+
+---
+
+_📝 Noted on 2026-09-20 03:32:39-04:00 @ git:1a92c6a+local_
+
+Closed 2026-09-20. Both children done: wip/9du moved HTTPTransport, URLSessionTransport, RetryPolicy, and the retry loop (HTTPClient) into core; wip/sxs (with wip/r4g for the shared test fixtures) added DecisionModelsOpenRouter with OpenRouterAlpha. All six design decisions hold in code: the type name carries Alpha, identity openrouter/<model>; new product, core transport, package-visible client shared by both providers, separate wire types and mapping; only model, state, and questions go out; cost dropped; no models(); Jev's capabilities and .calibrated with the alpha caveat in the doc comment. Testing strategy met: wire tests against the documented example, one test per documented status, one live request that fails without OPENROUTER_API_KEY, CI runs it with the repository secret already set, and the Jev retry tests passed unchanged through the refactor. DecisionSession(model: OpenRouterAlpha(model: "typesafe/jev-1.13")) is the one-line switch the user story asks for.

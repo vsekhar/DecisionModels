@@ -1,17 +1,17 @@
 name: CI
 
-# Every push runs everything, the Jev live suite included, and uploads test
-# coverage to Codecov. A pull request from a branch in this repository
-# already ran on its push, so the jobs run on a pull request only when it
-# comes from a fork. A fork gets no secrets, so its run skips the Jev suite
-# and the upload.
+# Every push runs everything, the Jev and OpenRouter live suites included,
+# and uploads test coverage to Codecov. A pull request from a branch in this
+# repository already ran on its push, so the jobs run on a pull request only
+# when it comes from a fork. A fork gets no secrets, so its run skips the two
+# live suites and the upload.
 #
 # The Apple live suite is not here: GitHub's macOS runners are virtual
 # machines, and Apple Intelligence does not run in one. See TESTING.md.
 #
 # The Linux job runs every suite that needs no Apple framework in the
 # official Swift image. It is the one check of the Linux claim for the
-# core, TypeSafe, and testing targets.
+# core, TypeSafe, OpenRouter, and testing targets.
 
 on:
   push:
@@ -51,7 +51,7 @@ jobs:
           key: spm-${{ runner.os }}-${{ runner.arch }}-xcode26.6-coverage-${{ hashFiles('Package.resolved') }}
 
       # One run, because each coverage run clears the one before it. A fork's
-      # pull request has no key, so it skips the Jev suite.
+      # pull request has no keys, so it skips the Jev and OpenRouter suites.
       #
       # The build log may show pairs of "Internal Error: DecodingError" and
       # "LLVM Profile Error" lines. They are harmless; TESTING.md explains
@@ -59,10 +59,11 @@ jobs:
       - name: Tests
         env:
           TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
-          SKIP_JEV: ${{ github.event_name == 'pull_request' }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SKIP_LIVE: ${{ github.event_name == 'pull_request' }}
         run: |
           skip=(--skip GuidedGenerationLiveTests)
-          if [ "$SKIP_JEV" = "true" ]; then skip+=(--skip JevLive); fi
+          if [ "$SKIP_LIVE" = "true" ]; then skip+=(--skip JevLive --skip OpenRouterLive); fi
           swift test -Xswiftc -warnings-as-errors --enable-code-coverage "${skip[@]}"
 
       # Naming the Sources folder keeps the report to the package's own code:
@@ -128,9 +129,9 @@ jobs:
 
       # Every file that imports FoundationModels sits behind
       # `#if canImport(FoundationModels)`, so the Apple suites are absent
-      # here and need no skip. The Jev suite runs when the key is present,
-      # which checks URLSession from FoundationNetworking against the
-      # service.
+      # here and need no skip. The Jev and OpenRouter suites run when their
+      # keys are present, which checks URLSession from FoundationNetworking
+      # against the services.
       #
       # A container job runs its steps with sh, which has no arrays, so
       # the step names bash.
@@ -138,8 +139,9 @@ jobs:
         shell: bash
         env:
           TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
-          SKIP_JEV: ${{ github.event_name == 'pull_request' }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SKIP_LIVE: ${{ github.event_name == 'pull_request' }}
         run: |
           skip=()
-          if [ "$SKIP_JEV" = "true" ]; then skip+=(--skip JevLive); fi
+          if [ "$SKIP_LIVE" = "true" ]; then skip+=(--skip JevLive --skip OpenRouterLive); fi
           swift test -Xswiftc -warnings-as-errors "${skip[@]}"

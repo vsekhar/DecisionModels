@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-20T00:17:15-04:00
-updated: 2026-09-20T02:51:56-04:00
+updated: 2026-09-20T03:32:22-04:00
 blocked-on:
   - 9du
   - r4g
@@ -144,3 +144,19 @@ Design record for the provider (2026-09-20). Written against HTTPClient (wip/9du
 6. Tests: wire (request equals the documented JSON as NSDictionary; endpoint URL and headers; criteria rendering; documented response to records; the wire type keeps id/model/provider/legend; usage and requestID; missing id and usage; unknown type, missing probabilities, non-integer level key, non-JSON all malformed; 503 then 200 sends twice; samples 3 refused unsent), errors (one test per status row, parameterized for 401/403, 502/529, 404/500; message fallbacks; server error description), availability (no key, blank key, environment key, direct call and session refuse unsent, identity and capabilities, session answers), live (suite OpenRouterLive, one request).
 
 7. CI: SKIP_JEV renamed SKIP_LIVE in both jobs; forks skip JevLive and OpenRouterLive; both jobs receive OPENROUTER_API_KEY. TESTING.md: new "Live tests against OpenRouter" section, "with every backend" heading, the Linux docker commands carry the second suite and key, three repository secrets listed. README: products table row, an OpenRouter paragraph after Jev's, hosted providers need iOS 18, the Tests line names three live suites. DESIGN.md: 10.1 OpenRouterAlpha paragraph after Jev's transport paragraph, 14 gains an OpenRouter column ("as Jev"), 15 lists the target and test target and the 15.1 row names the module.
+
+---
+
+_📝 Noted on 2026-09-20 03:02:25-04:00 @ git:1a92c6a+local_
+
+Implementation state (2026-09-20), before verification. Sources/DecisionModelsOpenRouter/{OpenRouterAlpha,OpenRouterWire,OpenRouterMapping,OpenRouterError}.swift; Tests/DecisionModelsOpenRouterTests/{Fixtures,WireTests,ErrorTests,AvailabilityTests,OpenRouterLiveTests}.swift; Package.swift (product, target, test target on DecisionModelsTestSupport); README, TESTING.md, DESIGN.md 10.1/14/15/15.1, ci.yml as the design record says.
+
+Results: swift build --build-tests -Xswiftc -warnings-as-errors clean. swift test --skip JevLive --skip OpenRouterLive --skip GuidedGenerationLiveTests: 434 tests in 46 suites (401 before + 33 OpenRouter tests in 3 suites). OpenRouterLive with the key sourced: 1 test passes, 0.3 s, team == payments. OpenRouterLive without the key: fails with the message naming OPENROUTER_API_KEY and the command; it does not skip. xcodebuild for the iOS Simulator: BUILD SUCCEEDED with the new product. The OPENROUTER_API_KEY repository secret was already set when this work started (gh secret list, 2026-09-20T04:28Z).
+
+---
+
+_📝 Noted on 2026-09-20 03:32:22-04:00 @ git:1a92c6a+local_
+
+Verifier (2026-09-20): six of seven criteria held; the one should-fix was DESIGN.md 14, where five table rows lacked the new OpenRouter cell and rendered Apple's cells under OpenRouter. Fixed: every row now carries "as Jev", and the Unavailable row says "no key, offline, 401 and 403; 402 for credits". Notes applied: an empty body id maps to nil requestID (test "An empty id counts as no id"); AvailabilityTests carries the FoundationNetworking guard for its URLRequest member call; 400, 402, and 413 now run under .default and pin one send, so adding one to isTransient fails a test; "stay unexposed" reworded. Added ParityTests.swift (the test target now also depends on DecisionModelsTypeSafe): a structured questionnaire and an object state go through Jev and OpenRouterAlpha against scripted transports, and the questions and state sub-objects of the two bodies must be equal as NSDictionary. It guards the one invariant the duplicated mappings rely on. Mutants killed one at a time, each by its own test only: empty id passed through; 413 in isTransient; choice criteria keyed "summary" instead of "what".
+
+Final: build clean under -warnings-as-errors; offline suite 436 tests in 47 suites (401 before this issue + 35 OpenRouter tests in 4 suites); OpenRouterLive passes with the key (0.3 s) and fails without it; iOS Simulator build succeeded; the OPENROUTER_API_KEY repository secret exists. Left for the record, out of this issue's doc scope: DESIGN.md 17 item 5 still reads "The hosted provider type is named `Jev`", which now understates the second provider.

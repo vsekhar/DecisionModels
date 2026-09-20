@@ -9,6 +9,7 @@ let package = Package(
     products: [
         .library(name: "DecisionModels", targets: ["DecisionModels"]),
         .library(name: "DecisionModelsTypeSafe", targets: ["DecisionModelsTypeSafe"]),
+        .library(name: "DecisionModelsOpenRouter", targets: ["DecisionModelsOpenRouter"]),
         .library(name: "DecisionModelsApple", targets: ["DecisionModelsApple"]),
         .library(name: "DecisionModelsTesting", targets: ["DecisionModelsTesting"]),
     ],
@@ -25,6 +26,7 @@ let package = Package(
         ),
         .target(name: "DecisionModels", dependencies: ["DecisionModelsMacros"]),
         .target(name: "DecisionModelsTypeSafe", dependencies: ["DecisionModels"]),
+        .target(name: "DecisionModelsOpenRouter", dependencies: ["DecisionModels"]),
         .target(name: "DecisionModelsApple", dependencies: ["DecisionModels"]),
         .target(name: "DecisionModelsTesting", dependencies: ["DecisionModels"]),
         .target(name: "DecisionModelsTestSupport", dependencies: ["DecisionModels"]),
@@ -43,6 +45,12 @@ let package = Package(
         .testTarget(
             name: "DecisionModelsTypeSafeTests",
             dependencies: ["DecisionModelsTypeSafe", "DecisionModelsTestSupport"]
+        ),
+        .testTarget(
+            name: "DecisionModelsOpenRouterTests",
+            dependencies: [
+                "DecisionModelsOpenRouter", "DecisionModelsTestSupport", "DecisionModelsTypeSafe",
+            ]
         ),
         .testTarget(name: "DecisionModelsAppleTests", dependencies: ["DecisionModelsApple"]),
         .testTarget(name: "DecisionModelsTestingTests", dependencies: ["DecisionModelsTesting"]),

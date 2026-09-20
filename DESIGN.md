@@ -887,6 +887,35 @@ the server's message, 429 `.rateLimited(retryAfter:)` and 529
 `.overloaded` after retries; anything else travels as
 `.transport(JevServerError)`.
 
+**`OpenRouterAlpha`** (module `DecisionModelsOpenRouter`). Maps a request
+one-to-one onto OpenRouter's `POST /api/alpha/decisions`. Its request and
+answer shapes match `POST /v1/systemone` field for field: the same
+question kinds, the same criteria rendering, the same answer records. The
+differences are the host, the path, the `vendor/model` name, a request id
+and a provider name in the body, a `cost` in usage, and a wider set of
+statuses. Reads `OPENROUTER_API_KEY` when no key is passed. The caller
+names the model; there is no default and no model list, because
+OpenRouter documents none. Declares Jev's capabilities and `.calibrated`,
+an assumption tied to `typesafe/jev-1.13`, the one decision model the
+alpha serves. Sends `model`, `state`, and `questions` only, and never
+`provider`, `session_id`, `user`, or `trace`. Drops `cost`. Requires
+`probabilities` in every choice and score answer, although the docs mark
+them optional, because a calibrated answer needs a distribution; a reply
+without one is malformed. Retries 429, 502, 503, 524, and 529 through the
+shared client. Status codes map to `DecisionError`: 400 `.invalidQuestion`
+with OpenRouter's message; 401 and 403 `.unauthorized`; 402
+`.unavailable(.other)`; 413 `.contextSizeExceeded`; 429
+`.rateLimited(retryAfter:)`; 503 `.overloaded`; 524 `.timeout`; anything
+else, 404, 500, 502, and 529 included, `.transport(OpenRouterServerError)`
+with the status, the message, and `error.code`. The type name carries
+"alpha", so no call site builds one without saying so. A plain
+`OpenRouter` type replaces it when the endpoint leaves alpha.
+
+```swift
+OpenRouterAlpha(model: "typesafe/jev-1.13")
+OpenRouterAlpha(model: "typesafe/jev-1.13", apiKey: key, retry: .default)
+```
+
 **`GuidedGenerationModel`** (module `DecisionModelsApple`). On iOS 26 and
 macOS 26 it wraps `SystemLanguageModel`. On iOS 27 and macOS 27 it will
 also accept any Apple `LanguageModel`, which brings in
@@ -1160,17 +1189,17 @@ print(report[latest.identity]?.question("team")?.brierScore ?? .nan)
 
 ## 14. Provider mapping
 
-| Concept | Jev | Apple `LanguageModel` via guided generation | Custom conformance |
-|---|---|---|---|
-| Choice | `type: choice`, criteria map | string property, `anyOf(optionIDs)`; criteria in prompt | any |
-| Rating | `type: score`, ordered criteria array | integer property, `range(0...n-1)`; legend in prompt | any |
-| Verdict | `type: noul`, optional true/false criteria | `Bool` property | any |
-| Batch | one request, parallel evaluation | one schema object, one generation | model decides |
-| Probabilities | calibrated; reported confidence | one-hot, or empirical from k samples; computed confidence | declared in capabilities |
-| Structured criteria and instructions | native JSON | rendered to text; declared as accepted | declared in capabilities |
-| State | string, object, array | JSON in the prompt | any |
-| Limits | 255 options, 2 to 10 levels, 64k tokens | 64 options, 2 to 10 levels, the device's context (4096 tokens); refused before sending | declared in capabilities |
-| Unavailable | no key, offline, 401 | device not eligible, Apple Intelligence off, model not ready | declared |
+| Concept | Jev | OpenRouter `OpenRouterAlpha` | Apple `LanguageModel` via guided generation | Custom conformance |
+|---|---|---|---|---|
+| Choice | `type: choice`, criteria map | as Jev | string property, `anyOf(optionIDs)`; criteria in prompt | any |
+| Rating | `type: score`, ordered criteria array | as Jev | integer property, `range(0...n-1)`; legend in prompt | any |
+| Verdict | `type: noul`, optional true/false criteria | as Jev | `Bool` property | any |
+| Batch | one request, parallel evaluation | as Jev | one schema object, one generation | model decides |
+| Probabilities | calibrated; reported confidence | as Jev | one-hot, or empirical from k samples; computed confidence | declared in capabilities |
+| Structured criteria and instructions | native JSON | as Jev | rendered to text; declared as accepted | declared in capabilities |
+| State | string, object, array | as Jev | JSON in the prompt | any |
+| Limits | 255 options, 2 to 10 levels, 64k tokens | as Jev | 64 options, 2 to 10 levels, the device's context (4096 tokens); refused before sending | declared in capabilities |
+| Unavailable | no key, offline, 401 | no key, offline, 401 and 403; 402 for credits | device not eligible, Apple Intelligence off, model not ready | declared |
 
 ## 15. Package layout
 
@@ -1182,6 +1211,7 @@ DecisionModels/
                                      HTTP transport and retry
     DecisionModelsMacros/            swift-syntax compiler plugin
     DecisionModelsTypeSafe/          Jev
+    DecisionModelsOpenRouter/        OpenRouterAlpha
     DecisionModelsApple/             GuidedGenerationModel (FoundationModels, iOS 26+)
     DecisionModelsTesting/           Scripted, Recording, Replay, Evaluation
     DecisionModelsTestSupport/       scripted transport and fake clock for HTTP
@@ -1190,17 +1220,19 @@ DecisionModels/
     DecisionModelsTests/             macro expansion tests, answer math, session checks,
                                      HTTP client
     DecisionModelsTypeSafeTests/     wire format against recorded responses, retries
+    DecisionModelsOpenRouterTests/   wire format against the documented example,
+                                     status mapping
 ```
 
-The core and the Jev provider have no Apple-only dependencies and build on
-Linux for server-side Swift. Only `DecisionModelsApple` needs
+The core and the two hosted providers have no Apple-only dependencies and
+build on Linux for server-side Swift. Only `DecisionModelsApple` needs
 FoundationModels.
 
 ### 15.1 Platform minimums
 
 | Target | Minimum | Reason |
 |---|---|---|
-| `DecisionModels`, `DecisionModelsTypeSafe`, `DecisionModelsTesting`, `DecisionModelsTestSupport` | iOS 18, macOS 15, Linux | `Mutex` from the Synchronization module; macros need Swift 5.9 |
+| `DecisionModels`, `DecisionModelsTypeSafe`, `DecisionModelsOpenRouter`, `DecisionModelsTesting`, `DecisionModelsTestSupport` | iOS 18, macOS 15, Linux | `Mutex` from the Synchronization module; macros need Swift 5.9 |
 | `DecisionModelsApple` | iOS 26, macOS 26 | FoundationModels: `SystemLanguageModel`, `DynamicGenerationSchema`, `respond(to:schema:)`, `GenerationOptions(temperature:)`, `Availability` are all iOS 26 |
 | `GuidedGenerationModel.init(_: some LanguageModel)` | iOS 27, macOS 27 | the `LanguageModel` protocol, `PrivateCloudComputeLanguageModel`, and third-party MLX and Core AI models arrived in iOS 27 |
 

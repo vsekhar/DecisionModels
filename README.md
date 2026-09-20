@@ -82,10 +82,11 @@ probabilities, the model's confidence, and the value the model named.
 |---|---|
 | `DecisionModels` | the types, the macros, the session, the composition wrappers, HTTP transport and retry |
 | `DecisionModelsTypeSafe` | `Jev`, the hosted TypeSafe model |
+| `DecisionModelsOpenRouter` | `OpenRouterAlpha`, OpenRouter's Decisions endpoint while it is in alpha |
 | `DecisionModelsApple` | `GuidedGenerationModel`, the on-device model (iOS 26, macOS 26) |
 | `DecisionModelsTesting` | scripted, recording, and replay models, and `Evaluation` |
 
-The core and the TypeSafe provider need iOS 18 or macOS 15. The Apple
+The core and the hosted providers need iOS 18 or macOS 15. The Apple
 adapter needs iOS 26 or macOS 26 and Apple Intelligence.
 
 ## Providers
@@ -103,6 +104,17 @@ let pinned = Jev(version: "jev-1.13.0", apiKey: key, retry: .default)
 
 `RetryPolicy`, `HTTPTransport`, and `URLSessionTransport` are core types. A
 file that names them imports `DecisionModels` next to `DecisionModelsTypeSafe`.
+
+**OpenRouter** serves the same model through its Decisions endpoint, which
+is in alpha. The type is `OpenRouterAlpha`, so every call site says so. It
+reads `OPENROUTER_API_KEY` from the environment when no key is passed. The
+caller names the model in OpenRouter's `vendor/model` form. There is no
+default and no model list. When the endpoint leaves alpha, a plain
+`OpenRouter` type will replace `OpenRouterAlpha`.
+
+```swift
+let session = DecisionSession(model: OpenRouterAlpha(model: "typesafe/jev-1.13"))
+```
 
 **The on-device model** answers a whole questionnaire in one guided
 generation. One draw gives a point estimate. Several draws give an
@@ -186,5 +198,6 @@ question, which is how to pick thresholds on your own data.
 
 ## Tests
 
-See [TESTING.md](TESTING.md). The live suites against Jev and against the
-on-device model fail, rather than skip, when their backend is missing.
+See [TESTING.md](TESTING.md). The live suites against Jev, against
+OpenRouter, and against the on-device model fail, rather than skip, when
+their backend is missing.

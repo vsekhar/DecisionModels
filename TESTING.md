@@ -6,7 +6,7 @@ or later.
 ## Everything but the live suites
 
 ```sh
-swift test --skip JevLive --skip GuidedGenerationLiveTests
+swift test --skip JevLive --skip OpenRouterLive --skip GuidedGenerationLiveTests
 ```
 
 This runs the core, macro expansion, provider wire format, testing module,
@@ -40,6 +40,17 @@ set -a; . ./.env; set +a; swift test --filter JevLive
 
 Do not print the key, and do not commit `.env`.
 
+## Live tests against OpenRouter
+
+The OpenRouter suite makes one request to OpenRouter's alpha Decisions
+endpoint with `typesafe/jev-1.13`. It reads `OPENROUTER_API_KEY` from the
+environment and **fails** when the variable is absent; it never skips. Put
+the key in `.env` beside the TypeSafe key and source it for one command:
+
+```sh
+set -a; . ./.env; set +a; swift test --filter OpenRouterLive
+```
+
 ## Live tests against the on-device model
 
 The Apple suite needs a Mac with Apple Intelligence turned on and the
@@ -50,7 +61,7 @@ never skips. Each live call takes a second or so.
 swift test --filter DecisionModelsAppleTests
 ```
 
-## The whole suite, with both backends
+## The whole suite, with every backend
 
 ```sh
 set -a; . ./.env; set +a; swift test
@@ -99,9 +110,9 @@ badge shows the line coverage of `main`.
 
 | Job | Runner | What it runs |
 |---|---|---|
-| macOS tests | `macos-26`, Xcode 26.6 | the offline suite and the Jev live suite in one run, with warnings as errors and coverage on, then the coverage upload |
+| macOS tests | `macos-26`, Xcode 26.6 | the offline suite and the Jev and OpenRouter live suites in one run, with warnings as errors and coverage on, then the coverage upload |
 | iOS build | `macos-26`, Xcode 26.6 | a build of every product for the iOS Simulator |
-| Linux tests | `ubuntu-latest`, `swift:6.3.3-noble` container | the offline suite and the Jev live suite, with warnings as errors |
+| Linux tests | `ubuntu-latest`, `swift:6.3.3-noble` container | the offline suite and the Jev and OpenRouter live suites, with warnings as errors |
 
 The tests run in one `swift test` run because each run with coverage
 clears the coverage of the run before it. To reproduce the CI step:
@@ -150,7 +161,7 @@ CI coverage leaves out the Apple live suite, so it understates the Apple
 adapter: on 2026-09-19 the adapter stood at 69% of lines in CI and 92% with
 the live suite. The whole package stood at 91.7% in CI and 95.1% with it.
 
-Two repository secrets feed the job:
+Three repository secrets feed the job:
 
 - `TYPESAFE_API_KEY` for the Jev live suite. Set it once from the package
   root. The first form prompts for the value, so paste the key. The second
@@ -163,13 +174,15 @@ Two repository secrets feed the job:
   ```
 
   Without it, the Jev suite fails, as it does locally without the key.
+- `OPENROUTER_API_KEY` for the OpenRouter live suite, set the same way.
+  Without it, that suite fails.
 - `CODECOV_TOKEN` for the upload. A failed upload fails the job, so a bad
   token shows at once.
 
 A pull request from a branch in this repository runs on its push, not
 again as a pull request. A pull request from a fork runs the offline suite
-on macOS and on Linux and the iOS build, but skips the Jev suite and the
-upload, because forks get no secrets.
+on macOS and on Linux and the iOS build, but skips the Jev and OpenRouter
+suites and the upload, because forks get no secrets.
 
 The Apple live suite does not run in CI. GitHub's macOS runners are virtual
 machines, and Apple Intelligence does not run in one. Run that suite on a
@@ -180,8 +193,8 @@ record a failure on an older one.
 
 ## Linux
 
-The core, TypeSafe, and testing targets build and pass their tests on
-Linux. CI checks this on every push. Every file that imports
+The core, TypeSafe, OpenRouter, and testing targets build and pass their
+tests on Linux. CI checks this on every push. Every file that imports
 FoundationModels sits behind `#if canImport(FoundationModels)`, so the
 Apple adapter's suites are absent on Linux. What is left, the prompt
 builder, its tests, and the test helpers, needs no Apple framework and
@@ -194,14 +207,16 @@ the Mac's:
 
 ```sh
 docker run --rm -v "$PWD":/pkg -w /pkg swift:6.3.3-noble \
-  swift test -Xswiftc -warnings-as-errors --scratch-path .build/linux --skip JevLive
+  swift test -Xswiftc -warnings-as-errors --scratch-path .build/linux \
+  --skip JevLive --skip OpenRouterLive
 ```
 
-To add the Jev suite, pass the key in from the environment:
+To add the live suites, pass the keys in from the environment:
 
 ```sh
 set -a; . ./.env; set +a
-docker run --rm -e TYPESAFE_API_KEY -v "$PWD":/pkg -w /pkg swift:6.3.3-noble \
+docker run --rm -e TYPESAFE_API_KEY -e OPENROUTER_API_KEY \
+  -v "$PWD":/pkg -w /pkg swift:6.3.3-noble \
   swift test -Xswiftc -warnings-as-errors --scratch-path .build/linux
 ```
 
