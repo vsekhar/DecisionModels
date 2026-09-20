@@ -4,6 +4,10 @@ import Testing
 
 @testable import DecisionModelsTypeSafe
 
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
+
 @Suite("Jev retries")
 struct RetryTests {
     /// Sends one request against a script and gives back the error, when

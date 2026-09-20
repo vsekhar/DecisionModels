@@ -8,6 +8,10 @@ name: CI
 #
 # The Apple live suite is not here: GitHub's macOS runners are virtual
 # machines, and Apple Intelligence does not run in one. See TESTING.md.
+#
+# The Linux job runs every suite that needs no Apple framework in the
+# official Swift image. It is the one check of the Linux claim for the
+# core, TypeSafe, and testing targets.
 
 on:
   push:
@@ -101,3 +105,41 @@ jobs:
           -scheme DecisionModels-Package
           -destination 'generic/platform=iOS Simulator'
           -skipMacroValidation
+
+  linux:
+    name: Linux tests
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    # Use the official image at the Swift version Xcode 26.6 ships, 6.3.3,
+    # so both platforms build with the same compiler. Pin the patch and
+    # the OS, so a change of the image's defaults does not change the build.
+    container: swift:6.3.3-noble
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      # swift-syntax builds from source here too. No coverage on Linux;
+      # the macOS job owns the report.
+      - name: Cache the build
+        uses: actions/cache@v6
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ runner.arch }}-swift6.3.3-${{ hashFiles('Package.resolved') }}
+
+      # Every file that imports FoundationModels sits behind
+      # `#if canImport(FoundationModels)`, so the Apple suites are absent
+      # here and need no skip. The Jev suite runs when the key is present,
+      # which checks URLSession from FoundationNetworking against the
+      # service.
+      #
+      # A container job runs its steps with sh, which has no arrays, so
+      # the step names bash.
+      - name: Tests
+        shell: bash
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          SKIP_JEV: ${{ github.event_name == 'pull_request' }}
+        run: |
+          skip=()
+          if [ "$SKIP_JEV" = "true" ]; then skip+=(--skip JevLive); fi
+          swift test -Xswiftc -warnings-as-errors "${skip[@]}"

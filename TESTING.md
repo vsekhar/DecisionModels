@@ -100,6 +100,7 @@ badge shows the line coverage of `main`.
 |---|---|---|
 | macOS tests | `macos-26`, Xcode 26.6 | the offline suite and the Jev live suite in one run, with warnings as errors and coverage on, then the coverage upload |
 | iOS build | `macos-26`, Xcode 26.6 | a build of every product for the iOS Simulator |
+| Linux tests | `ubuntu-latest`, `swift:6.3.3-noble` container | the offline suite and the Jev live suite, with warnings as errors |
 
 The tests run in one `swift test` run because each run with coverage
 clears the coverage of the run before it. To reproduce the CI step:
@@ -122,7 +123,9 @@ plugin reports it and exits, which gives the first line. This happens with
 or without coverage. With coverage on, SwiftPM instruments the plugin too,
 and on exit it tries to write its coverage file. The compiler runs plugins
 in a sandbox that allows writes to no folder, so that fails, which gives the
-second line. The plugin's coverage is not part of the report.
+second line. The plugin's coverage is not part of the report. The Linux
+job shows the first line alone, without the second, because coverage is
+off there.
 
 No environment variable can redirect that file. The compiler starts each
 plugin with an empty environment, so `LLVM_PROFILE_FILE` never reaches it.
@@ -164,8 +167,8 @@ Two repository secrets feed the job:
 
 A pull request from a branch in this repository runs on its push, not
 again as a pull request. A pull request from a fork runs the offline suite
-and the iOS build but skips the Jev suite and the upload, because forks get
-no secrets.
+on macOS and on Linux and the iOS build, but skips the Jev suite and the
+upload, because forks get no secrets.
 
 The Apple live suite does not run in CI. GitHub's macOS runners are virtual
 machines, and Apple Intelligence does not run in one. Run that suite on a
@@ -176,6 +179,32 @@ record a failure on an older one.
 
 ## Linux
 
-The core, TypeSafe, and testing targets are written to build on Linux, but
-the build has not been verified yet (see `wip show linux`). CI will gain a
-Linux job when that check passes.
+The core, TypeSafe, and testing targets build and pass their tests on
+Linux. CI checks this on every push. Every file that imports
+FoundationModels sits behind `#if canImport(FoundationModels)`, so the
+Apple adapter's suites are absent on Linux. What is left, the prompt
+builder, its tests, and the test helpers, needs no Apple framework and
+builds on both platforms.
+
+Run the offline suite in the official Swift image. The tag pins the Swift
+version that Xcode 26.6 ships, 6.3.3, so both platforms build with the
+same compiler. The scratch path keeps the Linux build products apart from
+the Mac's:
+
+```sh
+docker run --rm -v "$PWD":/pkg -w /pkg swift:6.3.3-noble \
+  swift test -Xswiftc -warnings-as-errors --scratch-path .build/linux --skip JevLive
+```
+
+To add the Jev suite, pass the key in from the environment:
+
+```sh
+set -a; . ./.env; set +a
+docker run --rm -e TYPESAFE_API_KEY -v "$PWD":/pkg -w /pkg swift:6.3.3-noble \
+  swift test -Xswiftc -warnings-as-errors --scratch-path .build/linux
+```
+
+On Linux, `URLSession`, `URLRequest`, `HTTPURLResponse`, and `URLError`
+live in the `FoundationNetworking` module. Every file that names one of
+them imports it behind `#if canImport(FoundationNetworking)`. Keep that
+guard when you add one.
