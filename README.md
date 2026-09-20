@@ -80,7 +80,7 @@ probabilities, the model's confidence, and the value the model named.
 
 | Product | Import it for |
 |---|---|
-| `DecisionModels` | the types, the macros, the session, the composition wrappers |
+| `DecisionModels` | the types, the macros, the session, the composition wrappers, HTTP transport and retry |
 | `DecisionModelsTypeSafe` | `Jev`, the hosted TypeSafe model |
 | `DecisionModelsApple` | `GuidedGenerationModel`, the on-device model (iOS 26, macOS 26) |
 | `DecisionModelsTesting` | scripted, recording, and replay models, and `Evaluation` |
@@ -100,6 +100,9 @@ version stays fixed until the service retires it.
 let session = DecisionSession(model: Jev(version: "jev-latest"))
 let pinned = Jev(version: "jev-1.13.0", apiKey: key, retry: .default)
 ```
+
+`RetryPolicy`, `HTTPTransport`, and `URLSessionTransport` are core types. A
+file that names them imports `DecisionModels` next to `DecisionModelsTypeSafe`.
 
 **The on-device model** answers a whole questionnaire in one guided
 generation. One draw gives a point estimate. Several draws give an

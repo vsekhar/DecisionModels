@@ -48,7 +48,7 @@ public struct RetryPolicy: Sendable {
     public static let none = RetryPolicy(maxRetries: 0)
 
     /// The wait before retry number `retry`, counting from one.
-    func backoff(retry: Int) -> Duration {
+    package func backoff(retry: Int) -> Duration {
         guard retry >= 1 else { return .zero }
         var wait = initialBackoff
         for _ in 1..<retry {

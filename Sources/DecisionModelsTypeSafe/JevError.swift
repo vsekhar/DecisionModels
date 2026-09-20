@@ -53,7 +53,7 @@ enum JevError {
         case 422:
             return .invalidQuestion(id: "", reason: said ?? "The service refused the questions.")
         case 429:
-            return .rateLimited(retryAfter: retryAfter(response))
+            return .rateLimited(retryAfter: HTTPClient.retryAfter(response))
         case 529:
             return .overloaded
         default:
@@ -61,34 +61,6 @@ enum JevError {
                 JevServerError(status: status, message: said, requestID: requestID(response))
             )
         }
-    }
-
-    /// Maps a failure that never reached the service.
-    static func decisionError(transport error: any Error) -> DecisionError {
-        if let error = error as? DecisionError { return error }
-        if let error = error as? URLError {
-            return error.code == .timedOut ? .timeout : .transport(error)
-        }
-        return .transport(error)
-    }
-
-    /// The caller's own cancellation, when that is what went wrong.
-    ///
-    /// Cancellation is not a provider failure, so it travels as itself and
-    /// `catch is CancellationError` works at the call site.
-    static func cancellation(_ error: any Error) -> CancellationError? {
-        if error is CancellationError { return CancellationError() }
-        if let error = error as? URLError, error.code == .cancelled { return CancellationError() }
-        return nil
-    }
-
-    /// The `Retry-After` header, read as a count of seconds.
-    static func retryAfter(_ response: HTTPURLResponse) -> Duration? {
-        guard let header = response.value(forHTTPHeaderField: "Retry-After") else { return nil }
-        guard let seconds = Double(header.trimmingCharacters(in: .whitespaces)),
-            seconds.isFinite, seconds >= 0
-        else { return nil }
-        return .seconds(seconds)
     }
 
     /// The provider's own id for the request.

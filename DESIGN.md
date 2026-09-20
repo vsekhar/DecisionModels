@@ -861,24 +861,31 @@ underneath the caller at any time. A pinned version can stop being
 available when the service retires it. `models()` returns a `ModelCard`
 for each version the account can call.
 
-Transport and waiting: `HTTPTransport` is a one-method protocol over
-`URLRequest`, with `URLSessionTransport` as the default, so tests script
-responses without a network. `RetryPolicy` (`maxRetries`, `initialBackoff`,
-`maximumBackoff`, `multiplier`, `attemptTimeout`; `.default`, `.none`)
-retries 429, 529, and transport failures with capped doubling backoff; a
-`Retry-After` header is honored but never beyond `maximumBackoff`.
-`DecisionRequest.timeout` is a deadline for the whole call, attempts and
-waits included, not for one attempt. `attemptTimeout` (ten seconds by
-default; `nil` for none) bounds each attempt on its own: an attempt gets
-that or the time left before the deadline, whichever is less, so one hung
-connection costs one attempt and a backoff, not the whole deadline. The
-provider retries a timed-out attempt like any transport failure; when the
-retries run out, or the deadline passes, the call ends in `.timeout`.
-Cancellation is never retried and surfaces as `CancellationError`, not as
-a `DecisionError`. Status codes map to `DecisionError`: 401
-`.unauthorized`, 422 `.invalidQuestion` with the server's message, 429
-`.rateLimited(retryAfter:)` and 529 `.overloaded` after retries; anything
-else travels as `.transport(JevServerError)`.
+Transport and waiting: `HTTPTransport`, `URLSessionTransport`,
+`RetryPolicy`, and the retry loop live in the core `DecisionModels` module,
+and every HTTP provider uses them. `HTTPTransport` is a one-method protocol
+over `URLRequest`, with `URLSessionTransport` as the default, so tests
+script responses without a network. `RetryPolicy` (`maxRetries`,
+`initialBackoff`, `maximumBackoff`, `multiplier`, `attemptTimeout`;
+`.default`, `.none`) says how often to send again, how long to wait, and
+how long one try may take. `HTTPClient`, visible inside the package only,
+runs the loop. It retries the statuses the provider names (429 and 529 for
+Jev) and transport failures with capped doubling backoff; it honors a
+`Retry-After` header but never waits past `maximumBackoff`.
+`DecisionRequest.timeout` is a deadline
+for the whole call, attempts and waits included, not for one attempt.
+`attemptTimeout` (ten seconds by default; `nil` for none) bounds each
+attempt on its own: an attempt gets that or the time left before the
+deadline, whichever is less, so one hung connection costs one attempt and
+a backoff, not the whole deadline. The client retries a timed-out attempt
+like any transport failure; when the retries run out, or the deadline
+passes, the call ends in `.timeout`. Cancellation is never retried and
+surfaces as `CancellationError`, not as a `DecisionError`. The client hands
+the provider the final reply, and the provider maps its status to
+`DecisionError`. For Jev: 401 `.unauthorized`, 422 `.invalidQuestion` with
+the server's message, 429 `.rateLimited(retryAfter:)` and 529
+`.overloaded` after retries; anything else travels as
+`.transport(JevServerError)`.
 
 **`GuidedGenerationModel`** (module `DecisionModelsApple`). On iOS 26 and
 macOS 26 it wraps `SystemLanguageModel`. On iOS 27 and macOS 27 it will
@@ -1171,14 +1178,15 @@ print(report[latest.identity]?.question("team")?.brierScore ?? .nan)
 DecisionModels/
   Package.swift                      swift-tools-version 6.2, strict concurrency
   Sources/
-    DecisionModels/                  core: protocols, State, wire types, Session, errors
+    DecisionModels/                  core: protocols, State, wire types, Session, errors,
+                                     HTTP transport and retry
     DecisionModelsMacros/            swift-syntax compiler plugin
     DecisionModelsTypeSafe/          Jev
     DecisionModelsApple/             GuidedGenerationModel (FoundationModels, iOS 26+)
     DecisionModelsTesting/           Scripted, Recording, Replay, Evaluation
   Tests/
     DecisionModelsTests/             macro expansion tests, answer math, session checks
-    DecisionModelsTypeSafeTests/     wire format against recorded responses
+    DecisionModelsTypeSafeTests/     wire format against recorded responses, retries, HTTP client
 ```
 
 The core and the Jev provider have no Apple-only dependencies and build on

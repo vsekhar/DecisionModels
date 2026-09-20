@@ -33,10 +33,8 @@ public struct Jev: DecisionModel {
     public let retry: RetryPolicy
 
     private let key: String?
-    private let transport: any HTTPTransport
     private let baseURL: URL
-    private let sleep: @Sendable (Duration) async -> Void
-    private let now: @Sendable () -> ContinuousClock.Instant
+    private let client: HTTPClient
 
     /// Builds a model.
     ///
@@ -75,10 +73,14 @@ public struct Jev: DecisionModel {
         self.version = version
         self.key = (trimmed?.isEmpty ?? true) ? nil : trimmed
         self.retry = retry
-        self.transport = transport
         self.baseURL = baseURL
-        self.sleep = sleep
-        self.now = now
+        self.client = HTTPClient(
+            transport: transport,
+            policy: retry,
+            transient: JevError.isTransient,
+            sleep: sleep,
+            now: now
+        )
     }
 
     /// The host the provider talks to.
@@ -128,7 +130,7 @@ public struct Jev: DecisionModel {
         } catch {
             throw DecisionError.transport(error)
         }
-        let (data, response) = try await send(call, timeout: request.timeout)
+        let (data, response) = try await reply(to: call, timeout: request.timeout)
         return try JevMapping.modelResponse(data: data, response: response)
     }
 
@@ -138,7 +140,7 @@ public struct Jev: DecisionModel {
         var call = URLRequest(url: baseURL.appending(path: "v1/models"))
         call.httpMethod = "GET"
         call.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        let (data, _) = try await send(call)
+        let (data, _) = try await reply(to: call)
         return try JevMapping.modelCards(data)
     }
 
@@ -151,75 +153,19 @@ public struct Jev: DecisionModel {
         return key
     }
 
-    /// Sends, and sends again while the failure says that helps.
+    /// Sends through the shared client and maps a reply the service refused.
     ///
-    /// The timeout is what the caller waits for the answer, tries and waits
-    /// counted in, so it becomes a deadline for the whole call and bounds
-    /// every attempt and every pause under it. The policy's attempt timeout
-    /// bounds each attempt on its own, so one hung attempt ends early and
-    /// leaves time under the deadline for another.
-    private func send(
-        _ request: URLRequest,
+    /// The client has already spent the retries the policy allows, so a
+    /// 429 or a 529 that reaches here is final.
+    private func reply(
+        to request: URLRequest,
         timeout: Duration? = nil
     ) async throws -> (Data, HTTPURLResponse) {
-        let deadline = timeout.map { now() + $0 }
-        var retries = 0
-        while true {
-            var attempt = request
-            if let budget = try attemptBudget(before: deadline) {
-                attempt.timeoutInterval = budget.timeInterval
-            }
-            do {
-                let (data, response) = try await transport.send(attempt)
-                guard !(200..<300).contains(response.statusCode) else { return (data, response) }
-                guard JevError.isTransient(response.statusCode), retries < retry.maxRetries else {
-                    throw JevError.decisionError(
-                        status: response.statusCode, body: data, response: response
-                    )
-                }
-                retries += 1
-                // A service that asks for a long wait still waits no longer
-                // than the policy allows.
-                let asked = JevError.retryAfter(response) ?? retry.backoff(retry: retries)
-                try await pause(min(asked, retry.maximumBackoff), until: deadline)
-            } catch let error as DecisionError {
-                throw error
-            } catch {
-                // The caller's own cancellation travels as itself.
-                if let cancellation = JevError.cancellation(error) { throw cancellation }
-                guard retries < retry.maxRetries else {
-                    throw JevError.decisionError(transport: error)
-                }
-                retries += 1
-                try await pause(retry.backoff(retry: retries), until: deadline)
-            }
+        let (data, response) = try await client.send(request, timeout: timeout)
+        guard (200..<300).contains(response.statusCode) else {
+            throw JevError.decisionError(status: response.statusCode, body: data, response: response)
         }
-    }
-
-    /// How long the next attempt may take: the policy's attempt timeout or
-    /// the time left before the deadline, whichever is less. With neither,
-    /// the transport's own default stands.
-    private func attemptBudget(before deadline: ContinuousClock.Instant?) throws -> Duration? {
-        try [retry.attemptTimeout, deadline.map(left(until:))].compactMap { $0 }.min()
-    }
-
-    /// Waits between two tries, and gives up when the caller has.
-    private func pause(
-        _ duration: Duration,
-        until deadline: ContinuousClock.Instant?
-    ) async throws {
-        try Task.checkCancellation()
-        var wait = duration
-        if let deadline { wait = min(wait, try left(until: deadline)) }
-        await sleep(wait)
-        try Task.checkCancellation()
-    }
-
-    /// How much of the caller's time is left. None left is a timeout.
-    private func left(until deadline: ContinuousClock.Instant) throws -> Duration {
-        let remaining = now().duration(to: deadline)
-        guard remaining > .zero else { throw DecisionError.timeout }
-        return remaining
+        return (data, response)
     }
 }
 
@@ -236,13 +182,5 @@ public struct ModelCard: Sendable, Hashable, Codable {
         self.name = name
         self.description = description
         self.releaseDate = releaseDate
-    }
-}
-
-extension Duration {
-    /// The duration as a count of seconds, for `URLRequest`.
-    var timeInterval: TimeInterval {
-        let parts = components
-        return Double(parts.seconds) + Double(parts.attoseconds) / 1e18
     }
 }
