@@ -1184,9 +1184,12 @@ DecisionModels/
     DecisionModelsTypeSafe/          Jev
     DecisionModelsApple/             GuidedGenerationModel (FoundationModels, iOS 26+)
     DecisionModelsTesting/           Scripted, Recording, Replay, Evaluation
+    DecisionModelsTestSupport/       scripted transport and fake clock for HTTP
+                                     provider tests; not a product
   Tests/
-    DecisionModelsTests/             macro expansion tests, answer math, session checks
-    DecisionModelsTypeSafeTests/     wire format against recorded responses, retries, HTTP client
+    DecisionModelsTests/             macro expansion tests, answer math, session checks,
+                                     HTTP client
+    DecisionModelsTypeSafeTests/     wire format against recorded responses, retries
 ```
 
 The core and the Jev provider have no Apple-only dependencies and build on
@@ -1197,7 +1200,7 @@ FoundationModels.
 
 | Target | Minimum | Reason |
 |---|---|---|
-| `DecisionModels`, `DecisionModelsTypeSafe`, `DecisionModelsTesting` | iOS 18, macOS 15, Linux | `Mutex` from the Synchronization module; macros need Swift 5.9 |
+| `DecisionModels`, `DecisionModelsTypeSafe`, `DecisionModelsTesting`, `DecisionModelsTestSupport` | iOS 18, macOS 15, Linux | `Mutex` from the Synchronization module; macros need Swift 5.9 |
 | `DecisionModelsApple` | iOS 26, macOS 26 | FoundationModels: `SystemLanguageModel`, `DynamicGenerationSchema`, `respond(to:schema:)`, `GenerationOptions(temperature:)`, `Availability` are all iOS 26 |
 | `GuidedGenerationModel.init(_: some LanguageModel)` | iOS 27, macOS 27 | the `LanguageModel` protocol, `PrivateCloudComputeLanguageModel`, and third-party MLX and Core AI models arrived in iOS 27 |
 

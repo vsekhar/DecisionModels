@@ -27,7 +27,11 @@ let package = Package(
         .target(name: "DecisionModelsTypeSafe", dependencies: ["DecisionModels"]),
         .target(name: "DecisionModelsApple", dependencies: ["DecisionModels"]),
         .target(name: "DecisionModelsTesting", dependencies: ["DecisionModels"]),
-        .testTarget(name: "DecisionModelsTests", dependencies: ["DecisionModels"]),
+        .target(name: "DecisionModelsTestSupport", dependencies: ["DecisionModels"]),
+        .testTarget(
+            name: "DecisionModelsTests",
+            dependencies: ["DecisionModels", "DecisionModelsTestSupport"]
+        ),
         .testTarget(
             name: "DecisionModelsMacrosTests",
             dependencies: [
@@ -36,7 +40,10 @@ let package = Package(
                 .product(name: "SwiftSyntaxMacrosGenericTestSupport", package: "swift-syntax"),
             ]
         ),
-        .testTarget(name: "DecisionModelsTypeSafeTests", dependencies: ["DecisionModelsTypeSafe"]),
+        .testTarget(
+            name: "DecisionModelsTypeSafeTests",
+            dependencies: ["DecisionModelsTypeSafe", "DecisionModelsTestSupport"]
+        ),
         .testTarget(name: "DecisionModelsAppleTests", dependencies: ["DecisionModelsApple"]),
         .testTarget(name: "DecisionModelsTestingTests", dependencies: ["DecisionModelsTesting"]),
     ],

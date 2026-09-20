@@ -2,9 +2,10 @@
 priority: p2
 type: task
 created: 2026-09-20T00:17:15-04:00
-updated: 2026-09-20T00:17:15-04:00
+updated: 2026-09-20T02:51:56-04:00
 blocked-on:
   - 9du
+  - r4g
 ---
 
 # OpenRouterAlpha provider with wire, error, and live tests
@@ -117,3 +118,29 @@ Parent: the OpenRouter provider feature. Blocked on the transport move child. wi
 _📝 Noted on 2026-09-20 00:17:15-04:00 @ git:2d3633c+local_
 
 Parent is wip/r0t; blocked on wip/9du (the transport move).
+
+---
+
+_📝 Noted on 2026-09-20 02:41:32-04:00 @ git:1d94ae3+local_
+
+2026-09-20: broke out wip/r4g (DecisionModelsTestSupport target: Reply, ScriptedTransport, FakeClock, isClose, plus the move of HTTPClientTests to the core test target). sxs is blocked on it and keeps the provider, its tests, the docs, and CI as its own scope. OPENROUTER_API_KEY is present in .env and the OPENROUTER_API_KEY repository secret exists (gh secret list, set 2026-09-20).
+
+---
+
+_📝 Noted on 2026-09-20 02:51:56-04:00 @ git:1d94ae3+local_
+
+Design record for the provider (2026-09-20). Written against HTTPClient (wip/9du) and DecisionModelsTestSupport (wip/r4g). Files as the issue lists them; decisions the issue left open, and small deviations:
+
+1. Fixture. The OpenRouter test target's fixture is OpenRouter's documented example itself: the checkout-page ticket and the three questions is_bug (noul, both sides), team (choice: account, frontend, payments), urgency (score, three levels), built from QuestionSpec with plain string criteria so the request encodes to the documented JSON. The live test triages that ticket, not a copy of the Jev target's Team/Severity ticket, and checks team == "payments", is_bug > 0.5, both distributions sum to one, requestID set, inputTokens > 0. One fixture set per target, and the live answer is checked against what the docs show.
+
+2. probabilities is required in OpenRouterAnswer.Choice and .Score although the docs mark it optional. A calibrated answer needs a distribution; a reply without one fails to decode and surfaces as .malformedResponse (a test covers it). Legend decodes and is dropped, as in Jev.
+
+3. OpenRouterResponse decodes id, model, provider, answers, usage. requestID is the body's id. model and provider are decoded and unread, as JevResponse.model is. usage.cost is not declared, so the decoder drops it.
+
+4. OpenRouterServerError(status:message:code:), public, CustomStringConvertible: "OpenRouter answered 502 (502): Provider returned error". code reads error.code as an Int or a String. message precedence: error.message, error.detail, message, detail, error as a string, then the body's first 500 characters. 400 with no message falls back to "OpenRouter refused the request."; 402 to "OpenRouter reports insufficient credits."
+
+5. OpenRouterError.isTransient = [429, 502, 503, 524, 529]. Status mapping as the issue's table. decide order: key check, samples check, build, send through HTTPClient, map a non-2xx, else OpenRouterMapping.modelResponse(_:).
+
+6. Tests: wire (request equals the documented JSON as NSDictionary; endpoint URL and headers; criteria rendering; documented response to records; the wire type keeps id/model/provider/legend; usage and requestID; missing id and usage; unknown type, missing probabilities, non-integer level key, non-JSON all malformed; 503 then 200 sends twice; samples 3 refused unsent), errors (one test per status row, parameterized for 401/403, 502/529, 404/500; message fallbacks; server error description), availability (no key, blank key, environment key, direct call and session refuse unsent, identity and capabilities, session answers), live (suite OpenRouterLive, one request).
+
+7. CI: SKIP_JEV renamed SKIP_LIVE in both jobs; forks skip JevLive and OpenRouterLive; both jobs receive OPENROUTER_API_KEY. TESTING.md: new "Live tests against OpenRouter" section, "with every backend" heading, the Linux docker commands carry the second suite and key, three repository secrets listed. README: products table row, an OpenRouter paragraph after Jev's, hosted providers need iOS 18, the Tests line names three live suites. DESIGN.md: 10.1 OpenRouterAlpha paragraph after Jev's transport paragraph, 14 gains an OpenRouter column ("as Jev"), 15 lists the target and test target and the 15.1 row names the module.
