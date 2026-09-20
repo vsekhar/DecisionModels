@@ -2,7 +2,7 @@
 priority: p1
 type: feature
 created: 2026-09-19T01:01:39-04:00
-updated: 2026-09-19T06:40:52-04:00
+updated: 2026-09-20T02:20:38-04:00
 ---
 
 # Build DecisionModels v1 per DESIGN.md
@@ -44,3 +44,9 @@ The parent closes when all children are closed, `swift test` passes with the liv
 _📝 Noted on 2026-09-19 06:40:52-04:00 @ git:1d580ea_
 
 State on 2026-09-19: twelve of thirteen children closed and committed on main; every commit closes the issue it carries. The remaining child, wip/linux, is the Linux build verification the user chose to defer, so this parent stays open until that runs. Full suite from main with both live backends: 397 tests in 44 suites pass. Live tests fail, not skip, without their backend.
+
+---
+
+_📝 Noted on 2026-09-20 02:20:38-04:00 @ git:edec507_
+
+2026-09-20: wip/linux closed with the Linux CI job (commit 74e8394). Full suite from main with both live backends: 403 tests in 44 suites pass. README.md and TESTING.md exist. All completion criteria met; closing.
