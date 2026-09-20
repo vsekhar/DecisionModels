@@ -1,0 +1,119 @@
+---
+priority: p2
+type: task
+created: 2026-09-20T00:17:15-04:00
+updated: 2026-09-20T00:17:15-04:00
+blocked-on:
+  - 9du
+---
+
+# OpenRouterAlpha provider with wire, error, and live tests
+
+## Objective
+Add `OpenRouterAlpha`, a `DecisionModel` for `POST https://openrouter.ai/api/alpha/decisions`, in a new `DecisionModelsOpenRouter` product, with wire tests, error-mapping tests, one live test, docs, and CI.
+
+## Context
+Child of the OpenRouter provider feature; read the parent first for the six design decisions. Blocked on the child that moves `HTTPTransport`, `RetryPolicy`, and the `HTTPClient` retry loop into the core module; this provider is written against those.
+
+`Jev` (`Sources/DecisionModelsTypeSafe/`) is the model for the module's shape: `Jev.swift` (the type, availability, `decide`), `JevWire.swift` (Encodable request and Decodable answer types), `JevMapping.swift` (questionnaire to wire and wire to `Answers`), `JevError.swift` (status to `DecisionError`). Copy the structure, not the files: the OpenRouter shapes differ in the places listed below, and the alpha endpoint may drift on its own.
+
+### The endpoint, as documented on 2026-09-20
+Request: `POST /api/alpha/decisions`, `Authorization: Bearer <key>`, JSON body with three required fields. `model` is a string such as `"typesafe/jev-1.13"`. `state` is a string, object, or array. `questions` is a map from id to a question object with `type` (`"noul"`, `"choice"`, or `"score"`), `instructions` (string, object, or array), and `criteria`: for `noul` an object with `"true"` and `"false"` keys; for `choice` a map from option id to a string, object, or array; for `score` an array of one or more level descriptions. These are the same shapes `JevMapping.question(_:)` renders today, including the structured criterion objects (`what` or `summary`, `not_for`, `examples`, `signals`), because the endpoint forwards them to TypeSafe. Optional fields `provider`, `session_id`, `user`, and `trace` exist and are out of scope.
+
+Response (200): `id` (string, the request id), `model` (the pinned model that answered, such as `"typesafe/jev-1.13-20260917"`), `provider` (such as `"TypeSafe"`), `answers` (map from id to an answer with a `type` field: `noul` carries `noul`; `choice` carries `choice`, optional `confidence`, optional `probabilities` map; `score` carries `score`, optional `confidence`, optional `legend` map keyed by index string, optional `probabilities` map keyed by index string), and `usage` with `input_tokens`, `output_tokens`, and optional `cost`.
+
+The documented example, for the wire tests:
+
+```json
+{
+  "model": "typesafe/jev-1.13",
+  "questions": {
+    "is_bug": { "type": "noul", "instructions": "Is the customer reporting a software defect?",
+      "criteria": { "true": "The customer describes broken or unexpected product behavior.",
+                    "false": "The customer is asking a question or requesting a feature." } },
+    "team": { "type": "choice", "instructions": "Which team should own this ticket?",
+      "criteria": { "account": "Login, permissions, or profile issues.",
+                    "frontend": "Rendering, layout, or browser compatibility issues.",
+                    "payments": "Checkout, billing, or payment processing issues." } },
+    "urgency": { "type": "score", "instructions": "How urgent is this ticket?",
+      "criteria": [ "Can wait for the next release", "Should be fixed this week", "Blocking revenue right now" ] }
+  },
+  "state": "My checkout page shows a blank screen after I click Pay. I have tried two browsers."
+}
+```
+
+```json
+{
+  "id": "gen-dec-1789738314-X5e5eKGQdvR9rblyX250",
+  "model": "typesafe/jev-1.13-20260917",
+  "provider": "TypeSafe",
+  "answers": {
+    "is_bug": { "type": "noul", "noul": 0.96 },
+    "team": { "type": "choice", "choice": "payments", "confidence": 0.75,
+              "probabilities": { "account": 0, "frontend": 0.16, "payments": 0.84 } },
+    "urgency": { "type": "score", "score": 1.99, "confidence": 0.99,
+                 "legend": { "0": "Can wait for the next release", "1": "Should be fixed this week", "2": "Blocking revenue right now" },
+                 "probabilities": { "0": 0, "1": 0.01, "2": 0.99 } }
+  },
+  "usage": { "input_tokens": 476, "output_tokens": 70, "cost": 0.000019992 }
+}
+```
+
+Errors carry `error.code` and `error.message`, with optional `error.metadata`. Documented statuses: 400 invalid request, 401 missing auth, 402 insufficient credits, 403 management key required, 404 not found, 413 payload too large, 429 rate limit, 500 internal error, 502 provider returned error, 503 temporarily unavailable, 524 request timed out, 529 provider returned error.
+
+## Location
+- `Package.swift`: target and product `DecisionModelsOpenRouter` (depends on `DecisionModels`), test target `DecisionModelsOpenRouterTests`, and a plain target `DecisionModelsTestSupport` (not a product; depends on `DecisionModels`) that holds `ScriptedTransport`, `FakeClock`, and `isClose`, moved out of `Tests/DecisionModelsTypeSafeTests/Fixtures.swift` so both HTTP test targets share them. The Jev-specific fixtures (`Team`, `Severity`, `ticket`, `triage()`, `harness`) stay where they are.
+- `Sources/DecisionModelsOpenRouter/OpenRouterAlpha.swift`, `OpenRouterWire.swift`, `OpenRouterMapping.swift`, `OpenRouterError.swift`.
+- `Tests/DecisionModelsOpenRouterTests/`: `WireTests.swift`, `ErrorTests.swift`, `AvailabilityTests.swift`, `OpenRouterLiveTests.swift`, `Fixtures.swift`.
+- `README.md`, `TESTING.md`, `DESIGN.md` 10.1, 14, 15, `.github/workflows/ci.yml`.
+
+## Approach
+- The type:
+  ```swift
+  public struct OpenRouterAlpha: DecisionModel {
+      public static let apiKeyVariable = "OPENROUTER_API_KEY"
+      public let model: String
+      public let retry: RetryPolicy
+      public init(model: String, apiKey: String? = nil, retry: RetryPolicy = .default,
+                  transport: any HTTPTransport = URLSessionTransport())
+  }
+  ```
+  plus the internal initializer the tests use, with `environment`, `baseURL`, `sleep`, and `now`, as `Jev` has. `identity` is `DecisionModelIdentity(provider: "openrouter", name: model)`. `availability` is `.unavailable(.notConfigured("OPENROUTER_API_KEY"))` without a key. `capabilities` are Jev's (`.calibrated`, 255 options, 10 levels, 64k context, no repeated samples), with a doc comment that says this is an alpha assumption tied to `typesafe/jev-1.13`. The type's doc comment says the endpoint is alpha, that OpenRouter may change or remove it, and that a plain `OpenRouter` type will replace this one when it leaves alpha.
+- `decide`: reject `samples > 1` as `.unsupported(.repeatedSamples)`; build the request; send through `HTTPClient` with `transient: { [429, 502, 503, 524, 529].contains($0) }`; on 2xx map the body; on anything else map the status.
+- Wire types: `OpenRouterRequest` with `model`, `state`, `questions` (question shape as Jev's); `OpenRouterResponse` with `id`, `model`, `provider`, `answers`, `usage`; answers decoded by `type` as `JevAnswer` does; `usage.cost` decoded and dropped, or left undecoded. `requestID` comes from the body's `id`.
+- Mapping: the same rendering as `JevMapping` for questions and criteria, and the same records back. Answers are `.calibrated`.
+- Status mapping, after the retries the client allows:
+  | Status | `DecisionError` |
+  |---|---|
+  | 400 | `.invalidQuestion(id: "", reason: message)` |
+  | 401, 403 | `.unauthorized` |
+  | 402 | `.unavailable(.other(message))` |
+  | 413 | `.contextSizeExceeded(limit: nil, estimated: nil)` |
+  | 429 | `.rateLimited(retryAfter:)` from the header |
+  | 503 | `.overloaded` |
+  | 524 | `.timeout` |
+  | 404, 500, 502, 529, anything else | `.transport(OpenRouterServerError)` with status, message, and `error.code` |
+  `message` reads `error.message`, then the fallbacks `JevError.message(in:)` uses.
+- Tests, no network: the request body for the fixture questionnaire equals the documented request for the same questions (encode, decode both as JSON objects, compare); the documented response decodes to the expected records, including `legend` and the `is_bug` verdict; one test per status row above; availability with and without the key and with a blank key; a 503 then a 200 sends twice, to show the client is wired in; `samples: 3` is refused before anything is sent.
+- Live test, suite `OpenRouterLive`, one request: triage the fixture ticket with `OpenRouterAlpha(model: "typesafe/jev-1.13", apiKey: key)` and `timeout: .seconds(60)`; check the team is `returns`, probabilities sum to one, `requestID` is set, `usage.inputTokens > 0`. Without `OPENROUTER_API_KEY` the test records a failure that names the variable and the command, as `JevLiveTests.liveKey()` does. It never skips.
+- Docs: README gains an OpenRouter paragraph and example beside Jev's, and the products table gains the module. TESTING.md gains a "Live tests against OpenRouter" section, adds the suite to the CI table and the reproduce command, and lists the second secret. DESIGN.md 10.1 gains an `OpenRouterAlpha` paragraph, 14 gains an OpenRouter column (same rows as Jev), 15 lists the new targets.
+- CI: `.github/workflows/ci.yml` passes `OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}` to the test step and adds `--skip OpenRouterLive` to the fork skip list. The user sets the secret with `gh secret set OPENROUTER_API_KEY`; the implementer notes in the closing note whether it was set at the time.
+- Style: short sentences, active voice; the user's writing rules apply to every doc comment and doc paragraph.
+
+## Related Issues
+Parent: the OpenRouter provider feature. Blocked on the transport move child. wip/c4r removes default models; this provider has none from the start. wip/jev is the pattern. wip/jso set up CI with the Jev live suite.
+
+## Acceptance Criteria
+- [ ] `import DecisionModelsOpenRouter` gives `OpenRouterAlpha`; it cannot be built without a model, and the word "alpha" is in the type name at every call site.
+- [ ] With no key in the argument or the environment, `availability` is `.unavailable(.notConfigured("OPENROUTER_API_KEY"))` and nothing is sent.
+- [ ] The documented example request and response round-trip through the wire types and mapping, and every documented status maps as the table says, each with a test.
+- [ ] `ScriptedTransport` and `FakeClock` live in `DecisionModelsTestSupport`, and both HTTP test targets use them; the Jev retry tests still pass unchanged.
+- [ ] `OpenRouterLive` passes once with the key sourced (`set -a; . ./.env; set +a; swift test --filter OpenRouterLive`) and fails, not skips, without it.
+- [ ] README, TESTING.md, DESIGN.md 10.1, 14, and 15 describe the provider, and ci.yml passes the secret and skips the suite on forks.
+- [ ] `swift build --build-tests -Xswiftc -warnings-as-errors` is clean, `swift test --skip JevLive --skip OpenRouterLive --skip GuidedGenerationLiveTests` passes, and the iOS build (`xcodebuild build -scheme DecisionModels-Package -destination 'generic/platform=iOS Simulator' -skipMacroValidation`) passes with the new product.
+
+---
+
+_📝 Noted on 2026-09-20 00:17:15-04:00 @ git:2d3633c+local_
+
+Parent is wip/r0t; blocked on wip/9du (the transport move).
