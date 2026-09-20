@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-19T18:35:49-04:00
-updated: 2026-09-19T18:35:49-04:00
+updated: 2026-09-20T01:27:50-04:00
 ---
 
 # Remove default models and versions from the public API
@@ -64,3 +64,31 @@ Parent wip/dmv1 (v1 per DESIGN.md; its conventions say public API names follow D
 - [ ] `swift test --skip JevLive --skip GuidedGenerationLiveTests` passes.
 - [ ] The Jev live suite passes once with the key sourced (`set -a; . ./.env; set +a; swift test --filter JevLive`).
 - [ ] The Apple live suite passes once on a Mac with Apple Intelligence on (`swift test --filter DecisionModelsAppleTests`). If the machine cannot run it, say so in the closing note; CI still builds the adapter for the iOS Simulator.
+
+---
+
+_📝 Noted on 2026-09-20 01:16:04-04:00 @ git:74e8394+local_
+
+Design decisions for the prose (2026-09-20). Inventory verified against the issue: no extra sites. Prose written in the main context, edits delegated to an Opus agent.
+
+Jev doc comment gains one paragraph before the example: 'The caller names the version. There is no default. `jev-latest` floats: the model behind it can change at any time. A pinned version such as `jev-1.13.0` stays fixed, but the service can retire it. `models()` lists the versions the account can call.' Example becomes DecisionSession(model: Jev(version: "jev-latest")).
+
+DESIGN.md 10.1: code block lines become Jev(version: "jev-latest") / Jev(version: "jev-preview") / pinned line unchanged. One paragraph after the block: 'The framework ships no default model or version. The caller names one and so accepts its contract. A floating alias such as `jev-latest` can change underneath the caller at any time. A pinned version can stop being available when the service retires it. `models()` lists the versions the account can call.' GuidedGenerationModel signature drops '= .default'; the instructions paragraph gains: 'The caller passes the model. `.default` is Apple's shared on-device model, and the model behind it changes with the OS.'
+
+DESIGN.md 17 decision 8: 'The framework ships no default model or version. Every provider initializer takes the model or the version as a required argument. The caller accepts the floating or the pinned contract by naming it.'
+
+README Jev paragraph gains: 'The caller names the version. `jev-latest` floats: the model behind it can change at any time. A pinned version stays fixed until the service retires it.'
+
+Examples with several Jev.latest uses (README wrappers, TESTING evaluation, DESIGN 13) bind 'let jev = Jev(version: "jev-latest")' once rather than repeat the initializer. DESIGN 10.2 wrappers block uses 'jev' as a free variable, matching 'onDevice', 'cache', 'recorder' in the same block.
+
+---
+
+_📝 Noted on 2026-09-20 01:20:02-04:00 @ git:74e8394+local_
+
+Edits applied by an Opus agent from the prose above; diff reviewed in the main context. One follow-up in the main context: realigned the trailing comments in the DESIGN.md 10.2 wrappers block after the shorter name shifted them. Build with warnings-as-errors clean; offline suite 396 tests pass; JevLive 2 tests pass with the key sourced; DecisionModelsAppleTests 48 tests pass on this Mac with Apple Intelligence on. No DEADCODE doc in the project; the change removes code and adds none, so nothing new is dead.
+
+---
+
+_📝 Noted on 2026-09-20 01:27:50-04:00 @ git:74e8394+local_
+
+Verifier (Opus) confirmed all nine criteria. It compiled the negatives from a scratch package outside the repo: Jev(apiKey:), Jev(), Jev.latest, Jev.preview, and GuidedGenerationModel() all fail to compile; every changed doc example compiles against the real types; the iOS Simulator build succeeds. One cosmetic finding fixed in the main context: DESIGN.md 10.1 said what models() does twice; merged into one sentence in the contract paragraph that keeps the ModelCard type name. Summary: removed Jev.latest and Jev.preview; version is required in both Jev initializers; GuidedGenerationModel takes its model as required; DESIGN.md 10.1 states the contract and section 17 records decision 8; README, TESTING.md, and every DESIGN.md example name the model; ten test sites name their model; the harness fixture keeps its test-only default.

@@ -13,7 +13,7 @@ struct AvailabilityTests {
         environment: [String: String] = [:],
         transport: ScriptedTransport
     ) -> Jev {
-        Jev(apiKey: apiKey, transport: transport, environment: environment)
+        Jev(version: "jev-latest", apiKey: apiKey, transport: transport, environment: environment)
     }
 
     @Test("No key, no model")
@@ -98,10 +98,10 @@ struct AvailabilityTests {
 
     @Test("The identity and the capabilities say what Jev is")
     func identityAndCapabilities() {
-        let jev = Jev.latest
+        let jev = Jev(version: "jev-latest", apiKey: "k")
         #expect(jev.identity.provider == "typesafe")
         #expect(jev.identity.name == "jev-latest")
-        #expect(Jev.preview.identity.name == "jev-preview")
+        #expect(Jev(version: "jev-preview", apiKey: "k").identity.name == "jev-preview")
         #expect(Jev(version: "jev-1.13.0", apiKey: "k").identity.name == "jev-1.13.0")
 
         let capabilities = jev.capabilities

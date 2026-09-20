@@ -50,7 +50,7 @@ struct TicketTriage {
     }
 }
 
-let session = DecisionSession(model: Jev.latest)
+let session = DecisionSession(model: Jev(version: "jev-latest"))
 let triage: TicketTriage = try await session.decide(about: ticket.body)
 
 if triage.needsHuman {
@@ -92,10 +92,12 @@ adapter needs iOS 26 or macOS 26 and Apple Intelligence.
 
 **Jev**, TypeSafe's hosted model, returns calibrated probabilities and a
 confidence for every answer. It reads `TYPESAFE_API_KEY` from the
-environment when no key is passed.
+environment when no key is passed. The caller names the version.
+`jev-latest` floats: the model behind it can change at any time. A pinned
+version stays fixed until the service retires it.
 
 ```swift
-let session = DecisionSession(model: Jev.latest)
+let session = DecisionSession(model: Jev(version: "jev-latest"))
 let pinned = Jev(version: "jev-1.13.0", apiKey: key, retry: .default)
 ```
 
@@ -105,7 +107,7 @@ empirical distribution, which is not calibrated but is a usable signal.
 
 ```swift
 let session = DecisionSession(
-    model: GuidedGenerationModel(),
+    model: GuidedGenerationModel(.default),
     options: DecisionOptions(samples: 3)
 )
 ```
@@ -121,10 +123,11 @@ let session = DecisionSession(model: ScriptedModel { _ in
 **Wrappers** are models too, so policy composes at the session line:
 
 ```swift
-CascadeModel(first: GuidedGenerationModel(), then: Jev.latest, escalateBelow: 0.7)
-ConsensusModel(Jev.latest, samples: 5)
-CachedModel(Jev.latest, storage: InMemoryDecisionCache(capacity: 1_000))
-RecordingModel(Jev.latest, into: recorder)
+let jev = Jev(version: "jev-latest")
+CascadeModel(first: GuidedGenerationModel(.default), then: jev, escalateBelow: 0.7)
+ConsensusModel(jev, samples: 5)
+CachedModel(jev, storage: InMemoryDecisionCache(capacity: 1_000))
+RecordingModel(jev, into: recorder)
 ```
 
 Every model reports its availability and its capabilities. The session

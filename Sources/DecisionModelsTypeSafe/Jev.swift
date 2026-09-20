@@ -12,19 +12,18 @@ import Foundation
 /// as JSON. It reports calibrated probabilities and keeps the named choice,
 /// the score, and the confidence the service returns.
 ///
+/// The caller names the version. There is no default. `jev-latest` floats:
+/// the model behind it can change at any time. A pinned version such as
+/// `jev-1.13.0` stays fixed, but the service can retire it. `models()` lists
+/// the versions the account can call.
+///
 /// ```swift
-/// let session = DecisionSession(model: Jev.latest)
+/// let session = DecisionSession(model: Jev(version: "jev-latest"))
 /// let triage = try await session.decide(Triage.self, about: ticket)
 /// ```
 public struct Jev: DecisionModel {
     /// The variable the key comes from when the caller passes none.
     public static let apiKeyVariable = "TYPESAFE_API_KEY"
-
-    /// The newest released model.
-    public static let latest = Jev()
-
-    /// The model under test at the vendor.
-    public static let preview = Jev(version: "jev-preview")
 
     /// The alias or pinned version this model asks for.
     public let version: String
@@ -44,7 +43,7 @@ public struct Jev: DecisionModel {
     /// The key is the argument, or `TYPESAFE_API_KEY` from the environment.
     /// Without a key the model is unavailable and never sends anything.
     public init(
-        version: String = "jev-latest",
+        version: String,
         apiKey: String? = nil,
         retry: RetryPolicy = .default,
         transport: any HTTPTransport = URLSessionTransport()
@@ -62,7 +61,7 @@ public struct Jev: DecisionModel {
     /// the clock are all arguments, so no test depends on the shell or on how
     /// long it really runs.
     init(
-        version: String = "jev-latest",
+        version: String,
         apiKey: String? = nil,
         retry: RetryPolicy = .default,
         transport: any HTTPTransport = URLSessionTransport(),

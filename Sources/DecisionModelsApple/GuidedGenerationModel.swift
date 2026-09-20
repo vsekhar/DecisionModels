@@ -26,7 +26,7 @@ public struct GuidedGenerationModel: DecisionModel {
     ///
     /// `instructions` are standing rules that follow the task in every
     /// session, such as the voice or the domain to judge by.
-    public init(_ model: SystemLanguageModel = .default, instructions: String? = nil) {
+    public init(_ model: SystemLanguageModel, instructions: String? = nil) {
         self.model = model
         self.extraInstructions = instructions
     }

@@ -103,7 +103,7 @@ struct TicketTriage {
     }
 }
 
-let session = DecisionSession(model: Jev.latest)
+let session = DecisionSession(model: Jev(version: "jev-latest"))
 
 let triage: TicketTriage = try await session.decide(about: ticket.body)
 
@@ -577,7 +577,7 @@ A session can hold standing context, the decision-model analogue of Apple's
 `instructions`. It merges into every request's state object:
 
 ```swift
-let session = DecisionSession(model: Jev.latest, context: ["policy": refundPolicy])
+let session = DecisionSession(model: Jev(version: "jev-latest"), context: ["policy": refundPolicy])
 ```
 
 ## 8. Sessions
@@ -848,13 +848,18 @@ richer one as an object with `what` or `summary`, `not_for`, `examples`,
 model unavailable with `.notConfigured`. Reports `.calibrated`, 255
 options, 10 levels, 64k context, no repeated samples. Keeps the returned
 `choice`, `score`, and `confidence` fields verbatim in the answer records.
-`models()` lists the account's models as `ModelCard` values.
 
 ```swift
-Jev.latest
-Jev.preview
+Jev(version: "jev-latest")
+Jev(version: "jev-preview")
 Jev(version: "jev-1.13.0", apiKey: key, retry: .default, transport: URLSessionTransport())
 ```
+
+The framework ships no default model or version. The caller names one and
+so accepts its contract. A floating alias such as `jev-latest` can change
+underneath the caller at any time. A pinned version can stop being
+available when the service retires it. `models()` returns a `ModelCard`
+for each version the account can call.
 
 Transport and waiting: `HTTPTransport` is a one-method protocol over
 `URLRequest`, with `URLSessionTransport` as the default, so tests script
@@ -883,7 +888,7 @@ that initializer waits for an Xcode 27 SDK (section 15.1).
 
 ```swift
 @available(iOS 26, macOS 26, *)
-public init(_ model: SystemLanguageModel = .default, instructions: String? = nil)
+public init(_ model: SystemLanguageModel, instructions: String? = nil)
 
 @available(iOS 27, macOS 27, *)   // not yet built; see 15.1
 public init(_ model: some LanguageModel)
@@ -891,7 +896,9 @@ public init(_ model: some LanguageModel)
 
 `instructions` are standing rules the adapter appends to its own task
 instructions in every session. Its identity is `apple` /
-`system-language-model`.
+`system-language-model`. The caller passes the model. `.default` is
+Apple's shared on-device model, and the model behind it changes with the
+OS.
 
 Per request it builds one `DynamicGenerationSchema` object with a property
 per question: a string constrained with `anyOf` over option ids for choice,
@@ -937,10 +944,10 @@ They work on `AnswerRecord` values, which expose confidence and
 probabilities without knowing the application's Swift types.
 
 ```swift
-CascadeModel(first: onDevice, then: Jev.latest, escalateBelow: 0.7)   // re-asks only the ids below the bar; merges only those
-ConsensusModel(Jev.latest, samples: 5)          // repeats, averages normalized distributions, marks .sampled, lists disagreements
-CachedModel(Jev.latest, storage: cache)          // keyed on state, questionnaire, samples, and model identity
-RecordingModel(Jev.latest, into: recorder)       // writes DecisionRecord values
+CascadeModel(first: onDevice, then: jev, escalateBelow: 0.7)   // re-asks only the ids below the bar; merges only those
+ConsensusModel(jev, samples: 5)                  // repeats, averages normalized distributions, marks .sampled, lists disagreements
+CachedModel(jev, storage: cache)                 // keyed on state, questionnaire, samples, and model identity
+RecordingModel(jev, into: recorder)              // writes DecisionRecord values
 ReplayModel(records: fixtures)                   // serves recorded answers; throws on miss
 ScriptedModel { request in Answers }             // closure-based test double; zero usage
 ```
@@ -1138,9 +1145,10 @@ Module `DecisionModelsTesting`.
   version, and an on-device fallback on equal terms.
 
 ```swift
-let report = try await Evaluation(models: [Jev.latest, Jev.preview, onDevice])
+let latest = Jev(version: "jev-latest")
+let report = try await Evaluation(models: [latest, Jev(version: "jev-preview"), onDevice])
     .run(TicketTriage.self, on: labeled)   // [(state: State, expected: TicketTriage)]
-print(report[Jev.latest.identity]?.question("team")?.brierScore ?? .nan)
+print(report[latest.identity]?.question("team")?.brierScore ?? .nan)
 ```
 
 ## 14. Provider mapping
@@ -1259,6 +1267,9 @@ Approved 2026-09-19.
 6. The `$` projection mechanism is confirmed to compile (section 12).
 7. Platform minimums are as given in section 15. The Apple adapter targets
    iOS 26; only the generic `LanguageModel` initializer needs iOS 27.
+8. The framework ships no default model or version. Every provider
+   initializer takes the model or the version as a required argument. The
+   caller accepts the floating or the pinned contract by naming it.
 
 ## 18. Plan
 

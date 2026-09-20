@@ -28,7 +28,7 @@ struct GuidedGenerationModelTests {
     @Test("The adapter names itself and its limits")
     func identityAndCapabilities() {
         guard #available(macOS 26, iOS 26, *) else { return needsMacOS26() }
-        let model = GuidedGenerationModel()
+        let model = GuidedGenerationModel(.default)
 
         #expect(model.identity.provider == "apple")
         #expect(model.identity.name == "system-language-model")

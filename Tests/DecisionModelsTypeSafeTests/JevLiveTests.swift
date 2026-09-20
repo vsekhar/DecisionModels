@@ -47,7 +47,7 @@ struct JevLiveTests {
             refund
         }
 
-        let model = Jev(apiKey: key)
+        let model = Jev(version: "jev-latest", apiKey: key)
         let response = try await model.decide(
             DecisionRequest(state: ticket, questionnaire: questionnaire, timeout: .seconds(60))
         )
@@ -99,7 +99,7 @@ struct JevLiveTests {
     func listsModels() async throws {
         guard let key = liveKey() else { return }
 
-        let listed = try await Jev(apiKey: key).models()
+        let listed = try await Jev(version: "jev-latest", apiKey: key).models()
         #expect(!listed.isEmpty)
         #expect(listed.contains { $0.name.hasPrefix("jev") })
     }

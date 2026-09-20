@@ -62,7 +62,7 @@ set -a; . ./.env; set +a; swift test
 
 ```swift
 let recorder = Recorder()
-let session = DecisionSession(model: RecordingModel(Jev.latest, into: recorder))
+let session = DecisionSession(model: RecordingModel(Jev(version: "jev-latest"), into: recorder))
 _ = try await session.decide(TicketTriage.self, about: ticket)
 try await recorder.write(to: fixtureURL)
 
@@ -79,9 +79,10 @@ option, a read lists them all.
 ## Evaluating a model on labeled data
 
 ```swift
-let report = try await Evaluation(models: [Jev.latest, GuidedGenerationModel()])
+let jev = Jev(version: "jev-latest")
+let report = try await Evaluation(models: [jev, GuidedGenerationModel(.default)])
     .run(TicketTriage.self, on: labeled)   // [(state: State, expected: TicketTriage)]
-let team = report[Jev.latest.identity]?.question("team")
+let team = report[jev.identity]?.question("team")
 team?.accuracy
 team?.brierScore
 team?.expectedCalibrationError

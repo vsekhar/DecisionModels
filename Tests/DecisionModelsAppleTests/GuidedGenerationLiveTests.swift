@@ -34,7 +34,7 @@ struct GuidedGenerationLiveTests {
     func oneSample() async throws {
         guard #available(macOS 26, iOS 26, *) else { return needsMacOS26() }
         guard modelIsReady() else { return }
-        let session = DecisionSession(model: GuidedGenerationModel())
+        let session = DecisionSession(model: GuidedGenerationModel(.default))
 
         let answers = try await session.decide(
             supportQuestionnaire,
@@ -82,7 +82,7 @@ struct GuidedGenerationLiveTests {
         guard #available(macOS 26, iOS 26, *) else { return needsMacOS26() }
         guard modelIsReady() else { return }
         let session = DecisionSession(
-            model: GuidedGenerationModel(),
+            model: GuidedGenerationModel(.default),
             options: DecisionOptions(samples: 3)
         )
 
@@ -113,7 +113,7 @@ struct GuidedGenerationLiveTests {
     func handWrittenDecision() async throws {
         guard #available(macOS 26, iOS 26, *) else { return needsMacOS26() }
         guard modelIsReady() else { return }
-        let session = DecisionSession(model: GuidedGenerationModel())
+        let session = DecisionSession(model: GuidedGenerationModel(.default))
 
         let triage: TicketTriage = try await session.decide(
             about: """
@@ -142,7 +142,7 @@ struct GuidedGenerationLiveTests {
         // would let all three run and come back at three times the deadline.
         let budget = Duration.milliseconds(800)
         let session = DecisionSession(
-            model: GuidedGenerationModel(),
+            model: GuidedGenerationModel(.default),
             options: DecisionOptions(timeout: budget, samples: 3)
         )
 
