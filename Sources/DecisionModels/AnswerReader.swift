@@ -144,7 +144,8 @@ enum AnswerReader {
     // MARK: Checks both paths share
 
     /// Checks a choice's probabilities and reported option against the option
-    /// ids, and adds every option the record leaves out at zero.
+    /// ids, and adds every option the record leaves out at zero. Two options
+    /// with one id are an invalid question.
     static func completed(
         _ probabilities: [String: Double],
         reported: String,
@@ -152,7 +153,13 @@ enum AnswerReader {
         id: String
     ) throws -> [String: Double] {
         var completed: [String: Double] = [:]
-        for optionID in optionIDs { completed[optionID] = 0 }
+        for optionID in optionIDs {
+            guard completed.updateValue(0, forKey: optionID) == nil else {
+                throw DecisionError.invalidQuestion(
+                    id: id, reason: "Two options share the id \(optionID)."
+                )
+            }
+        }
         for (optionID, probability) in try validated(probabilities, id: id) {
             guard completed[optionID] != nil else {
                 throw DecisionError.malformedResponse(

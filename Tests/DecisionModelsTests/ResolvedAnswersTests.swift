@@ -239,6 +239,29 @@ struct ResolvedAnswersTests {
         }
     }
 
+    @Test("Two options with one id are an invalid question at the wire level")
+    func duplicateOptionIDs() {
+        let spec = QuestionSpec(
+            id: "skill",
+            instructions: "Which skill fits the request?",
+            kind: .choice(options: [
+                .init(id: "refund", criterion: "Give money back"),
+                .init(id: "refund", criterion: "Refund, version two"),
+            ])
+        )
+        let record = AnswerRecord.choice(
+            reported: "refund", probabilities: ["refund": 1], confidence: nil
+        )
+        let error = #expect(throws: DecisionError.self) {
+            try AnswerReader.resolved(record, against: spec)
+        }
+        guard case .invalidQuestion(let id, _) = error else {
+            Issue.record("Expected invalidQuestion, got \(String(describing: error))")
+            return
+        }
+        #expect(id == "skill")
+    }
+
     @Test("The resolver leaves a complete record alone")
     func completeRecordIsUnchanged() throws {
         let record = AnswerRecord.rating(

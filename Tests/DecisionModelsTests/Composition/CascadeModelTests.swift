@@ -348,3 +348,140 @@ struct CascadeModelTests {
         #expect(far.prewarmCount == 1)
     }
 }
+
+extension CascadeModelTests {
+    @Test("A first answer that leaves out an option gates on the whole scale")
+    func firstAnswerIsResolvedBeforeTheBar() async throws {
+        // 0.7/0.3 over three options is 0.44 by the section 6.1 formula. The
+        // bare record reads the scale as two options and gives 0.12.
+        let thin = AnswerRecord.choice(
+            reported: "returns", probabilities: ["returns": 0.7, "shipping": 0.3], confidence: nil
+        )
+        let first = FakeModel(
+            answers: Answers(
+                records: [
+                    "a": thin,
+                    "b": answer("shipping", confidence: 0.9),
+                    "c": answer("billing", confidence: 0.9),
+                ],
+                quality: .calibrated
+            )
+        )
+        let second = FakeModel(answers: Answers(quality: .pointEstimate))
+        let cascade = CascadeModel(first: first, then: second, escalateBelow: 0.3)
+
+        let report = try await cascade.decideWithReport(Self.request)
+
+        #expect(isClose(thin.confidence, 0.12))
+        #expect(report.escalated.isEmpty)
+        #expect(second.callCount == 0)
+        #expect(
+            report.response.answers.records["a"] == .choice(
+                reported: "returns",
+                probabilities: ["returns": 0.7, "shipping": 0.3, "billing": 0],
+                confidence: nil
+            )
+        )
+    }
+
+    @Test("A malformed first answer throws before the second model is asked")
+    func malformedFirstAnswerThrows() async {
+        let first = FakeModel(
+            answers: Answers(
+                records: [
+                    "a": .choice(reported: "legal", probabilities: ["legal": 1], confidence: nil),
+                    // Weak, so an escalation is pending when the bad answer throws.
+                    "b": answer("shipping", confidence: 0.1),
+                    "c": answer("billing", confidence: 0.9),
+                ],
+                quality: .calibrated
+            )
+        )
+        let second = FakeModel(answers: Answers(quality: .pointEstimate))
+        let cascade = CascadeModel(first: first, then: second, escalateBelow: 0.7)
+
+        let error = await #expect(throws: DecisionError.self) {
+            _ = try await cascade.decide(Self.request)
+        }
+
+        guard case .malformedResponse(let reason) = error else {
+            Issue.record("Expected malformedResponse, got \(String(describing: error))")
+            return
+        }
+        #expect(reason.contains("Question a has no option named legal"))
+        #expect(second.callCount == 0)
+    }
+
+    @Test("The second model's answers are resolved too")
+    func secondAnswersAreResolved() async throws {
+        let second = FakeModel(
+            answers: Answers(
+                records: [
+                    "b": .choice(reported: "returns", probabilities: ["returns": 1], confidence: nil)
+                ],
+                quality: .calibrated
+            )
+        )
+        let cascade = CascadeModel(first: unsureAboutB(), then: second, escalateBelow: 0.7)
+
+        let response = try await cascade.decide(Self.request)
+
+        #expect(
+            response.answers.records["b"] == .choice(
+                reported: "returns",
+                probabilities: ["returns": 1, "shipping": 0, "billing": 0],
+                confidence: nil
+            )
+        )
+    }
+}
+
+extension CascadeModelTests {
+    static let severityRequest = DecisionRequest(
+        state: .text("The blender arrived broken."),
+        questionnaire: Questionnaire { Rate<Severity>("severity", "How severe is the issue?") }
+    )
+
+    @Test("A first rating that leaves out the top level gates on the whole scale")
+    func firstRatingIsResolvedBeforeTheBar() async throws {
+        // 0.7/0.3 over three levels is 0.54 by the section 6.1 formula. The
+        // bare record reads the scale as two levels and gives 0.08.
+        let thin = AnswerRecord.rating(
+            score: 0.3, probabilities: [0: 0.7, 1: 0.3], confidence: nil
+        )
+        let first = FakeModel(answers: Answers(records: ["severity": thin], quality: .calibrated))
+        let second = FakeModel(answers: Answers(quality: .pointEstimate))
+        let cascade = CascadeModel(first: first, then: second, escalateBelow: 0.5)
+
+        let report = try await cascade.decideWithReport(Self.severityRequest)
+
+        #expect(isClose(thin.confidence, 0.08))
+        #expect(report.escalated.isEmpty)
+        #expect(second.callCount == 0)
+        #expect(
+            report.response.answers.records["severity"]
+                == .rating(score: 0.3, probabilities: [0: 0.7, 1: 0.3, 2: 0], confidence: nil)
+        )
+    }
+
+    @Test("A malformed second answer throws too")
+    func malformedSecondAnswerThrows() async {
+        let second = FakeModel(
+            answers: Answers(
+                records: ["b": .choice(reported: "legal", probabilities: ["legal": 1], confidence: nil)],
+                quality: .calibrated
+            )
+        )
+        let cascade = CascadeModel(first: unsureAboutB(), then: second, escalateBelow: 0.7)
+
+        let error = await #expect(throws: DecisionError.self) {
+            _ = try await cascade.decide(Self.request)
+        }
+
+        guard case .malformedResponse(let reason) = error else {
+            Issue.record("Expected malformedResponse, got \(String(describing: error))")
+            return
+        }
+        #expect(reason.contains("Question b has no option named legal"))
+    }
+}

@@ -1004,7 +1004,7 @@ They work on `AnswerRecord` values, which expose confidence and
 probabilities without knowing the application's Swift types.
 
 ```swift
-CascadeModel(first: onDevice, then: jev, escalateBelow: 0.7)   // re-asks only the ids below the bar; merges only those
+CascadeModel(first: onDevice, then: jev, escalateBelow: 0.7)   // resolves each answer, re-asks only the ids below the bar; merges only those
 ConsensusModel(jev, samples: 5)                  // repeats, averages normalized distributions, marks .sampled, lists disagreements
 CachedModel(jev, storage: cache)                 // keyed on state, questionnaire, samples, and model identity
 RecordingModel(jev, into: recorder)              // writes DecisionRecord values
@@ -1015,8 +1015,13 @@ ScriptedModel { request in Answers }             // closure-based test double; z
 Details that matter when wrappers nest. `CascadeModel` and
 `ConsensusModel` each have a `decideWithReport(_:)` that returns a
 `CascadeReport` (the escalated ids) or a `ConsensusReport` (the ids whose
-answer changed across runs) beside the response. A cascade's identity
-names both providers and the threshold, so two cascades that differ only
+answer changed across runs) beside the response. A cascade resolves each
+answer the questionnaire asked for against its question (section 8): a
+first answer before it meets the bar, so the bar sees an exact confidence,
+and a second answer on merge, so the merged response is complete. A
+malformed first answer throws before the cascade asks the second model. A
+cascade's identity names both providers and the threshold, so two cascades
+that differ only
 in the bar do not share a cache entry; a consensus identity carries its
 sample count. `ConsensusModel` runs the inner model once per draw with
 `samples: 1`, uses a per-call `samples` above one in place of its default,

@@ -84,17 +84,39 @@ public struct CascadeModel: DecisionModel {
 
     /// Answers the request and names the questions the second model answered again.
     ///
-    /// A question the first model left out also escalates, so a gap gets a
-    /// second chance instead of reaching the caller. Only the escalated
-    /// answers change: a second model that answers more than it was asked
-    /// cannot overwrite a confident first answer.
+    /// The cascade resolves each first answer against its question (DESIGN.md
+    /// section 8) before it compares it with the bar. So the bar sees an exact
+    /// confidence, not one guessed from a record that lists only part of the
+    /// scale. A malformed first answer throws before the cascade asks the
+    /// second model. A question the first model left out also escalates, so a
+    /// gap gets a second chance instead of reaching the caller. The second
+    /// model's answers to the escalated questions are resolved the same way on
+    /// merge, so the merged response is complete. Only the escalated answers
+    /// change: a second model that answers more than it was asked cannot
+    /// overwrite a confident first answer.
     public func decideWithReport(_ request: DecisionRequest) async throws -> CascadeReport {
         let near = try await first.decide(request)
-        let escalated = request.questionnaire.specs.map(\.id).filter { id in
-            guard let record = near.answers.records[id] else { return true }
-            return record.confidence < threshold
+        var records = near.answers.records
+        var escalated: [String] = []
+        for spec in request.questionnaire.specs {
+            guard let record = near.answers.records[spec.id] else {
+                escalated.append(spec.id)
+                continue
+            }
+            let resolved = try AnswerReader.resolved(record, against: spec)
+            records[spec.id] = resolved
+            if resolved.confidence < threshold { escalated.append(spec.id) }
         }
-        guard !escalated.isEmpty else { return CascadeReport(response: near, escalated: []) }
+        guard !escalated.isEmpty else {
+            return CascadeReport(
+                response: ModelResponse(
+                    answers: Answers(records: records, quality: near.answers.quality),
+                    usage: near.usage,
+                    requestID: near.requestID
+                ),
+                escalated: []
+            )
+        }
 
         let weak = Set(escalated)
         let followUp = DecisionRequest(
@@ -108,9 +130,9 @@ public struct CascadeModel: DecisionModel {
         )
         let far = try await second.decide(followUp)
 
-        var records = near.answers.records
-        for id in escalated {
-            if let record = far.answers.records[id] { records[id] = record }
+        for spec in followUp.questionnaire.specs {
+            guard let record = far.answers.records[spec.id] else { continue }
+            records[spec.id] = try AnswerReader.resolved(record, against: spec)
         }
         return CascadeReport(
             response: ModelResponse(
