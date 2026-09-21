@@ -184,7 +184,9 @@ question, which is how to pick thresholds on your own data.
   a gating answer says to.
 - **Run-time questions.** When the answer space exists only at run time,
   build a `Questionnaire` from `Choose`, `Rate`, and `Verify` values and
-  read typed answers back through `answers[question]`.
+  read typed answers back through `answers[question]`. The records are
+  complete too: the session fills in every option or level the provider
+  left out at zero, so `confidence` on a record is exact.
 - **Set fan-out.** `@Ask("Does the request mention {option}?") var symbols: Set<Symbol>`
   asks one yes or no question per case and returns the members the model
   affirmed.

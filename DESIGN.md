@@ -479,6 +479,16 @@ compares against this number and no other.
      because the probability is the signal; this formula exists so that
      `Bool?` gating and bands work the same way for all three kinds.
 
+The formulas need `n`, the size of the answer space. A typed answer knows
+it from its options or levels. A wire record does not carry it, so
+`AnswerRecord.confidence` on a bare record guesses `n` from the keys it
+holds, and a provider that leaves out an option or level it gave zero
+weight makes that guess low. The session fills it in: it resolves every
+record against its question before it returns (section 8), so every option
+and level is present, absent ones at zero, and the record's number equals
+the typed answer's. Only a record from elsewhere, such as one built by
+hand, is an estimate.
+
 Confidence means different things for different kinds and for different
 question counts, which is also true of the provider's own numbers. That is
 why thresholds are per question, why `Optional` properties must state
@@ -510,7 +520,11 @@ theirs, and why section 13 ships a calibration report.
   the question does not know; two options that share an id. Probabilities
   that do not sum to one are scaled. Ties in a choice's `mostLikely` resolve by the option's description
   text, so the order is stable. Ties in a rating's `value` go to the lower
-  level, because the scale is ordered.
+  level, because the scale is ordered. The same probability, id, index,
+  score, and confidence checks run on the wire level when the session
+  resolves a response against its questionnaire (section 8), so the two
+  paths cannot drift apart. That step adds the absent options and levels
+  at zero and does not rescale.
 
 The three-band pattern from the Jev docs, at the call site:
 
@@ -661,7 +675,17 @@ against `model.capabilities`
 (option counts, level counts, structured criteria and instructions, question
 count, repeated samples). Failures throw before any network call. After the
 response it adds the usage, then checks `minimumProbabilityQuality`; tokens
-spent on a rejected response still count.
+spent on a rejected response still count. Then it resolves every record
+against the question that asked for it: an option or level the provider left
+out comes in at zero, and an unknown option id, a level index off the scale,
+a negative probability, a verdict probability or reported confidence outside
+`0...1`, a kind that does not match the question, or a record with no
+question throws `malformedResponse`. A question with no record stays absent:
+a `@Decision` enum decodes only the chosen case's arguments (section 5.1),
+so a response may leave the others out, and a read that needs the missing
+answer throws `invalidQuestion` as before. Every record the session returns
+is complete, whether it comes back from the run-time call or inside a
+`DecisionResponse`.
 
 Type inference makes `.self` optional at the call site:
 
@@ -715,7 +739,7 @@ public enum AnswerRecord: Sendable, Codable, Hashable {
     case choice(reported: String, probabilities: [String: Double], confidence: Double?)
     case rating(score: Double, probabilities: [Int: Double], confidence: Double?)
     case verdict(probability: Double)
-    public var confidence: Double         // reported, or the section 6.1 formula
+    public var confidence: Double         // reported, or the section 6.1 formula; exact once the session has resolved the record
 }
 
 public struct Answers: Sendable, Codable, Hashable {

@@ -151,6 +151,16 @@ public final class DecisionSession: Sendable {
     }
 
     /// Asks questions that exist only at run time.
+    ///
+    /// Every record that comes back covers the whole answer space of its
+    /// question: an option or level the provider left out is present at
+    /// zero. So `AnswerRecord.confidence` on these records is the section
+    /// 6.1 value, not an estimate. A record with an unknown option id, a
+    /// level index off the scale, a negative probability, a verdict
+    /// probability or reported confidence outside `0...1`, a kind that does
+    /// not match its question, or no question at all throws
+    /// `DecisionError.malformedResponse`. A question the provider did not
+    /// answer stays absent; a read of it throws `invalidQuestion`.
     public func decide(
         _ questionnaire: Questionnaire,
         about state: some StateRepresentable,
@@ -193,7 +203,13 @@ public final class DecisionSession: Sendable {
                 got: response.answers.quality, required: floor
             )
         }
-        return response
+        // Every record the session returns covers the whole answer space of
+        // its question, so `AnswerRecord.confidence` on it is exact.
+        return ModelResponse(
+            answers: try AnswerReader.resolved(response.answers, against: questionnaire),
+            usage: response.usage,
+            requestID: response.requestID
+        )
     }
 
     /// Merges the standing context into the state.

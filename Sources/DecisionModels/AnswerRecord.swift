@@ -6,9 +6,13 @@ public enum AnswerRecord: Sendable, Codable, Hashable {
 
     /// The provider's confidence, or the number the section 6.1 formula gives.
     ///
-    /// A record does not know the full answer space. When it lists only some
-    /// options or levels, this number is an estimate; the typed answer knows
-    /// the whole scale and is exact.
+    /// The formula needs the size of the answer space, which a record does
+    /// not carry. A record the session returns lists every option or level
+    /// of its question, absent ones at zero, so the number is exact. A
+    /// record from anywhere else may list only the options or levels the
+    /// provider saw; then the count is a guess from the record and the
+    /// number is an estimate. Read such a record through its question to
+    /// get the exact value.
     public var confidence: Double {
         switch self {
         case .choice(_, let probabilities, let confidence):
