@@ -59,7 +59,9 @@ model downloaded. It **fails** when the system model is unavailable; it
 never skips. Each live call takes a second or so.
 One test asks two questions with no state, which the on-device model
 answers from what it knows. Its control question is unrelated on purpose:
-asked two capitals questions in one request, this model answers both false.
+asked two capitals questions in one request under the ids `capital` and
+`control`, this model answers both false. A seventh test records that pair
+as the model's limit; other id pairs answer both right.
 
 ```sh
 swift test --filter DecisionModelsAppleTests

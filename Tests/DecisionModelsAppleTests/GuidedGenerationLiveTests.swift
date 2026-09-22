@@ -124,6 +124,38 @@ struct GuidedGenerationLiveTests {
             + "expected=\(expected)")
     }
 
+    /// Pins a limit of the on-device model. Paris is the capital of France
+    /// and Berlin is the capital of Germany, so both answers should be true;
+    /// asked in one request under the ids `capital` and `control`, the model
+    /// says false to both. Other id pairs, such as `q1` and `q2`, answer both
+    /// right, so the cause is the field names, not the questions. A future OS
+    /// model that answers this pair right turns the test red on purpose: read
+    /// the numbers, then update the test and DESIGN.md 10.1.
+    @Test("Two yes-or-no questions on one topic come back with one answer")
+    func twoVerdictsOnOneTopic() async throws {
+        guard #available(macOS 26, iOS 26, *) else { return needsMacOS26() }
+        guard modelIsReady() else { return }
+        let session = DecisionSession(model: GuidedGenerationModel(.default))
+
+        let questionnaire = Questionnaire {
+            Verify("capital", "Is Paris the capital of France?")
+            Verify("control", "Is Berlin the capital of Germany?")
+        }
+
+        let answers = try await session.decide(questionnaire)
+
+        guard case .verdict(let capital)? = answers.records["capital"],
+              case .verdict(let control)? = answers.records["control"]
+        else {
+            Issue.record("The answers are not verdicts.")
+            return
+        }
+        #expect(capital == 0)
+        #expect(control == 0)
+
+        print("LIVE one topic: capital=\(capital) control=\(control)")
+    }
+
     @Test("Three samples give an empirical distribution")
     func threeSamples() async throws {
         guard #available(macOS 26, iOS 26, *) else { return needsMacOS26() }

@@ -13,6 +13,13 @@ import FoundationModels
 /// one, each on its own session, and the answers carry the empirical share
 /// of every option, marked `.sampled(count: k)`.
 ///
+/// The on-device model can answer two yes-or-no questions in one request
+/// wrong because of their field names. Measured on 2026-09-22 with the ids
+/// `capital` and `control` and two questions on one topic, the first field
+/// comes back false whatever it asks. Other id pairs for the same
+/// questions, such as `q1` and `q2`, answer both right, so the cause is not
+/// yet understood. A state that names both facts makes the answers right.
+///
 /// DESIGN.md 10.1 also promises an initializer over any Apple
 /// `LanguageModel`. That protocol arrives with iOS 27 and macOS 27; the
 /// Xcode 26.6 SDK has no part of it, so this type takes

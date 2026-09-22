@@ -997,13 +997,19 @@ criteria go into the prompt as text and JSON, so the adapter declares
 Jev takes natively, and the caller never knows the difference. With no
 state, or a `.null` one, the prompt has no `STATE` block, and the standing
 instructions drop the lines that tell the model to judge only the state, so
-it answers from the question and what it knows. One
-`respond(schema:)` call answers the whole batch, so batching survives the
-change of provider. Before it sends, it estimates tokens with
+it answers from the question and what it knows. The on-device model can
+answer two yes-or-no questions in one request wrong because of their field
+names. Measured on 2026-09-22 with the ids `capital` and `control` and two
+questions on one topic, the first field comes back false whatever it asks.
+Other id pairs for the same questions, such as `q1` and `q2`, answer both
+right, so the cause is not yet understood. A state that names both facts
+makes the answers right. A live test in `GuidedGenerationLiveTests`
+records it. One `respond(schema:)` call answers the whole batch, so batching
+survives the change of provider. Before it sends, it estimates tokens with
 `tokenCount(for:)` and throws `contextSizeExceeded` when the instructions,
-prompt, and schema would not leave room for the answer (256 tokens or 8
-per question, whichever is larger). `Usage.inputTokens` is that estimate
-times the number of draws; the SDK reports no output tokens.
+prompt, and schema would not leave room for the answer (256 tokens or 8 per
+question, whichever is larger). `Usage.inputTokens` is that estimate times
+the number of draws; the SDK reports no output tokens.
 
 It declares `probabilityQuality = .sampled(count: .max)` as its ceiling.
 With `samples == 1` a response carries `.pointEstimate` and one-hot
