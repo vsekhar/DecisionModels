@@ -185,19 +185,11 @@ public struct GuidedGenerationModel: DecisionModel {
     /// `UInt32.max`, `UInt32.max + 1`, or `Int64.max` fails the request with
     /// an empty `GenerationError`, while small seeds work. Left to itself the
     /// framework picks a seed per call, and the draws do come out different.
-    ///
-    /// The macOS 27 SDK renames the `sampling:` label to `samplingMode:` and
-    /// deprecates the old one. The new initializer back-deploys to macOS 26,
-    /// so the choice depends on the SDK, not the OS, and a `#available` check
-    /// cannot make it. FoundationModels reports version 2.0 from the 27 SDK.
     static func generationOptions(samples: Int) -> GenerationOptions {
-        let mode: GenerationOptions.SamplingMode = samples > 1 ? .random(top: 50) : .greedy
-        let temperature: Double? = samples > 1 ? 1.0 : nil
-        #if canImport(FoundationModels, _version: 2.0)
-        return GenerationOptions(samplingMode: mode, temperature: temperature)
-        #else
-        return GenerationOptions(sampling: mode, temperature: temperature)
-        #endif
+        guard samples > 1 else {
+            return GenerationOptions(samplingMode: .greedy)
+        }
+        return GenerationOptions(samplingMode: .random(top: 50), temperature: 1.0)
     }
 
     /// What is left of the caller's deadline.
