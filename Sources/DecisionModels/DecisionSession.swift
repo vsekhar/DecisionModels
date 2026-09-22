@@ -237,8 +237,9 @@ public final class DecisionSession: Sendable {
             samples: options.samples,
             against: decisionModel.capabilities
         )
+        // A `.null` state is no state, here and everywhere after.
         let request = DecisionRequest(
-            state: merged(state),
+            state: merged(state == .null ? nil : state),
             questionnaire: questionnaire,
             samples: options.samples,
             timeout: options.timeout,
@@ -266,12 +267,12 @@ public final class DecisionSession: Sendable {
     /// An object state gains the context fields, and the state wins when both
     /// hold the same key. Any other state becomes the `state` field of an
     /// object that also holds the context. No state with a context gives the
-    /// context alone. A `.null` state counts as no state. An empty context
-    /// leaves the state alone.
+    /// context alone. An empty context leaves the state alone. `send` drops a
+    /// `.null` state before this runs.
     private func merged(_ state: State?) -> State? {
         guard !context.isEmpty else { return state }
         var object = context
-        if let state, state != .null {
+        if let state {
             if case .object(let fields) = state {
                 for (name, value) in fields { object[name] = value }
             } else {
