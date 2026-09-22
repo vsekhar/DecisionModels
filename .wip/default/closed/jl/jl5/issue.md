@@ -2,7 +2,7 @@
 priority: p2
 type: feature
 created: 2026-09-22T16:50:52-04:00
-updated: 2026-09-22T18:03:30-04:00
+updated: 2026-09-22T19:33:02-04:00
 ---
 
 # Requests without state
@@ -24,11 +24,11 @@ A developer asks factual or self-contained questions, or runs a questionnaire wh
 Agreed with the user on 2026-09-22:
 
 1. **Absence, not a sentinel.** `DecisionRequest.state` is `State?`. The core never picks `""`, `{}`, or `null`.
-2. **A provider fills a value only if its API requires one.** TypeSafe does not, so Jev omits the field. OpenRouter's docs call `state` required, so that provider probes the live endpoint and then either omits the field or sends a documented fallback. Apple has no wire; it drops the `STATE` block and switches to instructions that allow the model's own knowledge.
+2. **A provider fills a value only if its API requires one.** Both TypeSafe and OpenRouter require a state and reject a bare `null` (live probe, 2026-09-22), so Jev and OpenRouterAlpha send an empty string for a request with no state or with a `.null` state. Apple has no wire; it drops the `STATE` block and switches to instructions that allow the model's own knowledge.
 3. **Session calls without `about:`.** Swift cannot default `about state: some StateRepresentable` to `nil`, so each entry point gains an overload with no `about:`. The builder overload is unchanged.
 4. **Context alone is state.** With no state and a non-empty context, the request's state is the context object. With neither, it is `nil`. A non-object state with context still nests under `state`, as today.
 5. **Keys carry the optional.** `CacheKey` and `ReplayKey` hold `State?`, so a stateless request and one about an empty object are different requests.
-6. **`.null` and absence are the same once they pass through JSON.** Synthesized `Codable` encodes `.some(.null)` as `null` and decodes `null` as `nil`. Documented, not fought.
+6. **`.null` is no state.** The session drops a `.null` state before the request exists (wip/9zs), every provider sends the same body for either, and through JSON the two come out the same, because synthesized `Codable` encodes `.some(.null)` as `null` and decodes `null` as `nil`.
 
 ## Out of Scope
 - Changing `StateBuilder`: a builder with no fields still yields an empty object.
@@ -60,3 +60,9 @@ Design decision 2 amended, 2026-09-22, after a live probe of both APIs with a st
 _📝 Noted on 2026-09-22 18:03:30-04:00 @ git:5171280+local_
 
 2026-09-22: wip/in4 added after the wip/8ei and wip/kst verifier: the context merge should treat a .null state as no state, to match decision 6 and the providers' mapping. Implemented together with wip/sxu.
+
+---
+
+_📝 Noted on 2026-09-22 19:33:02-04:00 @ git:69bf22d+local_
+
+Closed 2026-09-22. All eight children done across four CI-green passes merged to main: wip/e7t (core: State?, five no-about: session calls, merge, keys), wip/8ei and wip/kst (both providers send an empty string for no state, since both APIs require one), wip/169 (Apple stateless prompt and instructions), wip/sxu (classify without state), wip/in4 and wip/9zs (.null is no state, at the session and below), wip/n96 (docs). Design decisions 1 to 6 hold as amended in the description: 2 changed after the live probe, 6 after the docs verifier. Testing strategy met: session tests for every call form and merge case, wire and parity tests for the empty-string body, one live test per hosted provider in CI with the Atlanta question at 0.97, one local Apple live test with the Paris question at 1.0 and an unrelated control at 0.0, prompt and instruction tests in both modes, CI green on Xcode 26.6 and Linux for every pass. The user story holds: session.decide(Questionnaire { capital }) with no about: answers the Atlanta question strongly true on Jev and OpenRouter. One finding outside the feature stays open as wip/bte: the on-device model answers two capitals questions in one request both false.

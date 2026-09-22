@@ -2,7 +2,7 @@
 priority: p3
 type: bug
 created: 2026-09-22T18:46:44-04:00
-updated: 2026-09-22T18:46:44-04:00
+updated: 2026-09-22T19:23:26-04:00
 ---
 
 # On-device model collapses two similar yes-or-no questions to one answer
@@ -39,3 +39,34 @@ wip/169 chose an unrelated control for its live test because of this. wip/jl5 is
 ## Acceptance Criteria
 - [ ] A note records the reproduction and each mitigation tried, with numbers.
 - [ ] Either the adapter answers the table's true pairs correctly, or DESIGN.md and the doc comment state the limit and a local live test pins it.
+
+---
+
+_📝 Noted on 2026-09-22 19:23:26-04:00 @ git:69bf22d+local_
+
+Experiment plan, 2026-09-22, for wip/bte. The worker runs it on this Mac with Apple Intelligence; nothing here touches a hosted API.
+
+### Harness
+A scratch package outside the repository, depending on the package by path, or a temporary test in Tests/DecisionModelsAppleTests that is deleted before the diff is reported. It drives `DecisionSession(model: GuidedGenerationModel(.default))` through the public API and prints, per request, the verdict probabilities. Every request uses one sample (greedy) unless the row says otherwise. Run each row three times; the model is deterministic under greedy, so three identical runs confirm the reading and a split shows noise.
+
+### Baseline table (reproduce first)
+| Row | Questions in one request | Expected if the model were right |
+|---|---|---|
+| 1 | "Is Paris the capital of France?" | 1 |
+| 2 | row 1 + "Is the Moon made of cheese?" | 1, 0 |
+| 3 | row 1 + "Is Paris the capital of Germany?" | 1, 0 |
+| 4 | row 1 + "Is Berlin the capital of Germany?" | 1, 1 |
+| 5 | row 3 with state "Paris is the capital of France. Berlin is the capital of Germany." | 1, 0 |
+| 6 | row 4 with the same state | 1, 1 |
+| 7 | row 3 with three samples at temperature one | anything but 0, 0 on every draw |
+
+### Mitigations, measured one at a time against rows 3 to 6, then combined
+A. One instruction line for every mode, appended after "For a yes or no question, give true or false.": "Judge each yes or no question on its own; two questions can both be true."
+B. A description on each boolean property in the schema (`SchemaBuilder`), the question's instructions text, if the builder does not pass one already. Read `SchemaBuilder.build` first and report what it passes today.
+C. The question heading in the prompt repeated as the field's description and the field name made distinct, if B shows the name alone is what the model sees.
+
+### Decision rule
+If one mitigation or a combination makes rows 3 to 6 right without changing the six existing Apple live tests' results, keep it, with a doc comment on the change and a local live test that asks row 3 and row 4 and expects 1, 0 and 1, 1. If nothing works, change no code: add the limit to DESIGN.md section 10.1's Apple paragraph and to the `GuidedGenerationModel` type doc, and add a local live test that asks row 4 and records the collapse as the expected result, with a comment saying a future OS model that fixes it will turn the test red on purpose.
+
+### Report
+The full table with numbers for the baseline and for each mitigation, the diff, and the two runs: the offline suite with warnings as errors and the Apple live suite.
