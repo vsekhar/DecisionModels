@@ -2,7 +2,7 @@
 priority: p2
 type: feature
 created: 2026-09-22T16:50:52-04:00
-updated: 2026-09-22T16:50:53-04:00
+updated: 2026-09-22T18:03:30-04:00
 ---
 
 # Requests without state
@@ -48,3 +48,15 @@ Agreed with the user on 2026-09-22:
 _📝 Noted on 2026-09-22 16:50:53-04:00 @ git:e5a964d+local_
 
 Children: wip/e7t is the core change and blocks the rest. wip/8ei (Jev), wip/kst (OpenRouter), wip/169 (Apple), and wip/sxu (hierarchy, P3) are blocked on it and can run in parallel. wip/n96 (docs) is blocked on the Jev, OpenRouter, and Apple children so it documents settled behaviour.
+
+---
+
+_📝 Noted on 2026-09-22 17:48:26-04:00 @ git:fadedf3+local_
+
+Design decision 2 amended, 2026-09-22, after a live probe of both APIs with a stateless noul 'Is Atlanta the capital of Georgia?' plus a control 'Is Paris the capital of Germany?': a body with no state field is rejected by TypeSafe (422, body.state 'Field required') and by OpenRouter (400, expected string, record, or array). So the playground must add a state of its own. With state "" both answer 200, Atlanta noul 0.97, control 0.01; with {} 0.97 and 0.96; with [] 0.97; with null both reject (422, 400). Decision: Jev and OpenRouterAlpha send an empty string for a nil state, and also for a State.null state, which the APIs reject as a bare null. The core stays sentinel-free (decision 1 holds); the sentinel lives in the two wire types, documented there. Decision 6 holds. wip/8ei and wip/kst implement it together; the parity test pins that both send the same body.
+
+---
+
+_📝 Noted on 2026-09-22 18:03:30-04:00 @ git:5171280+local_
+
+2026-09-22: wip/in4 added after the wip/8ei and wip/kst verifier: the context merge should treat a .null state as no state, to match decision 6 and the providers' mapping. Implemented together with wip/sxu.
