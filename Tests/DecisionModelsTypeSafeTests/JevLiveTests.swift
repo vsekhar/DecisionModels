@@ -5,8 +5,8 @@ import Testing
 
 @testable import DecisionModelsTypeSafe
 
-/// Tests that call the real service. They cost money, so the suite sends two
-/// requests and no more.
+/// Tests that call the real service. They cost money, so the suite sends
+/// three requests and no more.
 ///
 /// Run them with the key in the environment:
 ///
@@ -94,6 +94,35 @@ struct JevLiveTests {
         }
         #expect(probability > 0.5)
         #expect(try answers[refund].value)
+    }
+
+    @Test("Jev answers questions that carry their own facts")
+    func answersWithNoState() async throws {
+        guard let key = liveKey() else { return }
+
+        let questionnaire = Questionnaire {
+            Verify("capital", "Is Atlanta the capital of Georgia?")
+            Verify("control", "Is Paris the capital of Germany?")
+        }
+        let session = DecisionSession(
+            model: Jev(version: "jev-latest", apiKey: key),
+            options: DecisionOptions(timeout: .seconds(60))
+        )
+        let answers = try await session.decide(questionnaire)
+
+        let capital = try #require(answers.records["capital"])
+        guard case .verdict(let probability) = capital else {
+            Issue.record("The capital answer is not a verdict.")
+            return
+        }
+        let controlRecord = try #require(answers.records["control"])
+        guard case .verdict(let controlProbability) = controlRecord else {
+            Issue.record("The control answer is not a verdict.")
+            return
+        }
+        print("LIVE no state: capital=\(probability) control=\(controlProbability)")
+        #expect(probability >= 0.9)
+        #expect(controlProbability <= 0.1)
     }
 
     @Test("The account can call a Jev model")

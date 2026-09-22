@@ -83,6 +83,31 @@ struct ParityTests {
         #expect(fromOpenRouter["model"] as? String == "typesafe/jev-1.13")
     }
 
+    @Test("Both providers send an empty string for no state")
+    func sameEmptyState() async throws {
+        let jevTransport = ScriptedTransport([.status(500)])
+        let openRouterTransport = ScriptedTransport([.status(500)])
+        let request = DecisionRequest(
+            questionnaire: Questionnaire {
+                Verify("capital", "Is Atlanta the capital of Georgia?")
+            }
+        )
+        _ = try? await Jev(
+            version: "jev-latest", apiKey: "k", retry: .none, transport: jevTransport
+        ).decide(request)
+        _ = try? await OpenRouterAlpha(
+            model: "typesafe/jev-1.13", apiKey: "k", retry: .none, transport: openRouterTransport
+        ).decide(request)
+
+        let fromJev = try object(#require(jevTransport.sent.first?.httpBody))
+        let fromOpenRouter = try object(#require(openRouterTransport.sent.first?.httpBody))
+        #expect(fromJev["state"] as? String == "")
+        #expect(fromOpenRouter["state"] as? String == "")
+        let questions = try #require(fromJev["questions"] as? NSDictionary)
+        #expect(questions.count == 1)
+        #expect(questions == fromOpenRouter["questions"] as? NSDictionary)
+    }
+
     /// Reads JSON as a dictionary, so key order does not matter.
     private func object(_ data: Data) throws -> NSDictionary {
         try #require(try JSONSerialization.jsonObject(with: data) as? NSDictionary)

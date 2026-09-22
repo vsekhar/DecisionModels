@@ -170,6 +170,20 @@ struct WireTests {
         #expect(!String(decoding: encoded ?? Data(), as: UTF8.self).contains("criteria"))
     }
 
+    @Test("A request with no state sends an empty string as the state")
+    func noStateSendsAnEmptyString() async throws {
+        let body = try await sentBody(DecisionRequest(questionnaire: capital))
+        #expect(body["state"] as? String == "")
+        #expect((body["questions"] as? NSDictionary)?.count == 1)
+    }
+
+    @Test("A null state sends an empty string too")
+    func nullStateSendsAnEmptyString() async throws {
+        let body = try await sentBody(DecisionRequest(state: .null, questionnaire: capital))
+        #expect(body["state"] as? String == "")
+        #expect((body["questions"] as? NSDictionary)?.count == 1)
+    }
+
     // MARK: Back
 
     @Test("The documented answers decode into records")
@@ -295,6 +309,18 @@ struct WireTests {
     }
 
     // MARK: Helpers
+
+    /// A question that carries its own facts, so the request needs no state.
+    private var capital: Questionnaire {
+        Questionnaire { Verify("capital", "Is Atlanta the capital of Georgia?") }
+    }
+
+    /// Sends a request to a scripted transport and returns the body it sent.
+    private func sentBody(_ request: DecisionRequest) async throws -> NSDictionary {
+        let fake = harness([.ok(sampleResponse)])
+        _ = try? await fake.model.decide(request)
+        return try object(#require(fake.transport.sent.first?.httpBody))
+    }
 
     /// Sends a questionnaire to a scripted transport and returns the request.
     private func send(_ questionnaire: Questionnaire) async throws -> URLRequest {

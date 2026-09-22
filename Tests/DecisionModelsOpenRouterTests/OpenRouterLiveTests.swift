@@ -5,8 +5,8 @@ import Testing
 
 @testable import DecisionModelsOpenRouter
 
-/// Tests that call OpenRouter. They cost money, so the suite sends one
-/// request and no more.
+/// Tests that call OpenRouter. They cost money, so the suite sends two
+/// requests and no more.
 ///
 /// Run them with the key in the environment:
 ///
@@ -80,5 +80,34 @@ struct OpenRouterLiveTests {
             return
         }
         #expect(probability > 0.5)
+    }
+
+    @Test("OpenRouter answers questions that carry their own facts")
+    func answersWithNoState() async throws {
+        guard let key = liveKey() else { return }
+
+        let questionnaire = Questionnaire {
+            Verify("capital", "Is Atlanta the capital of Georgia?")
+            Verify("control", "Is Paris the capital of Germany?")
+        }
+        let session = DecisionSession(
+            model: OpenRouterAlpha(model: "typesafe/jev-1.13", apiKey: key),
+            options: DecisionOptions(timeout: .seconds(60))
+        )
+        let answers = try await session.decide(questionnaire)
+
+        let capital = try #require(answers.records["capital"])
+        guard case .verdict(let probability) = capital else {
+            Issue.record("The capital answer is not a verdict.")
+            return
+        }
+        let controlRecord = try #require(answers.records["control"])
+        guard case .verdict(let controlProbability) = controlRecord else {
+            Issue.record("The control answer is not a verdict.")
+            return
+        }
+        print("LIVE no state: capital=\(probability) control=\(controlProbability)")
+        #expect(probability >= 0.9)
+        #expect(controlProbability <= 0.1)
     }
 }

@@ -16,11 +16,25 @@ import Foundation
 struct OpenRouterRequest: Encodable, Sendable {
     /// The model, in OpenRouter's `vendor/model` form.
     var model: String
-    /// The material to judge: a text, an object, or an array. Absent when the
-    /// request has none; the encoder then omits the field.
-    var state: State?
+    /// The material to judge: a text, an object, or an array. The service
+    /// requires one and rejects a bare `null`, so a request with no state, or
+    /// with a `.null` state, sends an empty string. The model then answers
+    /// from the questions alone.
+    var state: State
     /// The questions, by id.
     var questions: [String: Question]
+
+    /// Builds a body. A `nil` state and a `.null` state both become an empty
+    /// string; every other state goes as it is.
+    init(model: String, state: State?, questions: [String: Question]) {
+        self.model = model
+        if let state, state != .null {
+            self.state = state
+        } else {
+            self.state = .text("")
+        }
+        self.questions = questions
+    }
 
     enum CodingKeys: String, CodingKey {
         case model

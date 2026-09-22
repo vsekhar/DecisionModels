@@ -29,7 +29,7 @@ swift test --filter DecisionModelsMacrosTests
 
 ## Live tests against Jev
 
-The Jev suite makes two requests to TypeSafe's service. It reads
+The Jev suite makes three requests to TypeSafe's service. It reads
 `TYPESAFE_API_KEY` from the environment and **fails** when the variable is
 absent; it never skips. Put the key in `.env` (ignored by git) and source
 it for one command:
@@ -42,7 +42,7 @@ Do not print the key, and do not commit `.env`.
 
 ## Live tests against OpenRouter
 
-The OpenRouter suite makes one request to OpenRouter's alpha Decisions
+The OpenRouter suite makes two requests to OpenRouter's alpha Decisions
 endpoint with `typesafe/jev-1.13`. It reads `OPENROUTER_API_KEY` from the
 environment and **fails** when the variable is absent; it never skips. Put
 the key in `.env` beside the TypeSafe key and source it for one command:

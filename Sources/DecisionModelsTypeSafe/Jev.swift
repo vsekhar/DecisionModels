@@ -17,6 +17,10 @@ import Foundation
 /// `jev-1.13.0` stays fixed, but the service can retire it. `models()` lists
 /// the versions the account can call.
 ///
+/// A request with no state, or with a `.null` state, sends an empty string as
+/// the state, because the service requires one and rejects a bare `null`. The
+/// model then answers from the questions alone.
+///
 /// ```swift
 /// let session = DecisionSession(model: Jev(version: "jev-latest"))
 /// let triage = try await session.decide(Triage.self, about: ticket)

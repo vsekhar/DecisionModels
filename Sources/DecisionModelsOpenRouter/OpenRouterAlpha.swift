@@ -23,6 +23,10 @@ import Foundation
 /// no endpoint that lists decision models, so the name comes from
 /// OpenRouter's docs.
 ///
+/// A request with no state, or with a `.null` state, sends an empty string as
+/// the state, because the service requires one and rejects a bare `null`. The
+/// model then answers from the questions alone.
+///
 /// ```swift
 /// let session = DecisionSession(model: OpenRouterAlpha(model: "typesafe/jev-1.13"))
 /// let triage = try await session.decide(Triage.self, about: ticket)

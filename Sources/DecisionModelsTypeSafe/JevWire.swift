@@ -8,13 +8,27 @@ import Foundation
 
 /// The body of `POST /v1/systemone`.
 struct JevRequest: Encodable, Sendable {
-    /// The material to judge: a text, an object, or an array. Absent when the
-    /// request has none; the encoder then omits the field.
-    var state: State?
+    /// The material to judge: a text, an object, or an array. The service
+    /// requires one and rejects a bare `null`, so a request with no state, or
+    /// with a `.null` state, sends an empty string. The model then answers
+    /// from the questions alone.
+    var state: State
     /// An alias such as `jev-latest`, or a pinned version.
     var model: String
     /// The questions, by id.
     var questions: [String: Question]
+
+    /// Builds a body. A `nil` state and a `.null` state both become an empty
+    /// string; every other state goes as it is.
+    init(state: State?, model: String, questions: [String: Question]) {
+        if let state, state != .null {
+            self.state = state
+        } else {
+            self.state = .text("")
+        }
+        self.model = model
+        self.questions = questions
+    }
 
     enum CodingKeys: String, CodingKey {
         case state
