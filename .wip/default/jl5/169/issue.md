@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-22T16:50:52-04:00
-updated: 2026-09-22T16:50:52-04:00
+updated: 2026-09-22T17:27:06-04:00
 blocked-on:
   - e7t
 may-unblock:
@@ -37,3 +37,9 @@ Parent feature; the core child.
 - [ ] Instruction tests: the stateless text has no sentence about a state and keeps the format rules; the stateful text is unchanged.
 - [ ] Live, local: `GuidedGenerationModel` answers the Atlanta question true, with a probability at or above a threshold read off a real run on a Mac with Apple Intelligence. A note on this issue records the run.
 - [ ] The offline Apple suite passes and CI is green.
+
+---
+
+_📝 Noted on 2026-09-22 17:27:06-04:00 @ git:2f0531d+local_
+
+From the wip/e7t verifier, 2026-09-22: wip/e7t's prompt with no state now starts at the first question heading with no leading newline (a small fix after the verifier flagged a leading blank line), and PromptBuilderTests gained one test that pins that shape: no STATE line, no null, first line is the first heading. Write the instruction tests against the real bytes and keep that test green.
