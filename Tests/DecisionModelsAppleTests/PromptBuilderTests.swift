@@ -39,6 +39,19 @@ struct PromptBuilderTests {
         #expect(stateless.hasPrefix("## "))
     }
 
+    @Test("A null state is no state for the prompt")
+    func nullStateStartsAtTheFirstQuestion() {
+        let stateless = DecisionPromptBuilder.prompt(
+            state: .null,
+            questionnaire: promptQuestionnaire,
+            fieldNames: ["team": "team", "bug.severity": "bug_severity", "refund": "refund"]
+        )
+
+        #expect(!stateless.contains("STATE"))
+        #expect(!stateless.contains("null"))
+        #expect(stateless.hasPrefix("## "))
+    }
+
     @Test("The prompt names every question")
     func namesEveryQuestion() {
         for spec in promptQuestionnaire.specs {
@@ -74,6 +87,57 @@ struct PromptBuilderTests {
         #expect(instructions.contains("Answer in the shop's voice."))
         #expect(DecisionPromptBuilder.instructions().contains("Reply with JSON only."))
         #expect(!DecisionPromptBuilder.instructions().contains("shop's voice"))
+    }
+
+    @Test("Instructions without a state let the model use what it knows")
+    func statelessInstructionsUseWhatTheModelKnows() {
+        let instructions = DecisionPromptBuilder.instructions(hasState: false)
+
+        #expect(instructions.contains("what you know"))
+        #expect(instructions.contains("Reply with JSON only."))
+        #expect(
+            instructions.contains(
+                "For a choice question, give exactly one option id from that question's list."
+            )
+        )
+        #expect(
+            instructions.contains(
+                "For a rating question, give the index of the level that fits."
+            )
+        )
+        #expect(instructions.contains("For a yes or no question, give true or false."))
+        #expect(!instructions.contains("state"))
+
+        let withExtra = DecisionPromptBuilder.instructions(
+            adding: "Answer in the shop's voice.",
+            hasState: false
+        )
+        #expect(withExtra.hasSuffix("\n\nAnswer in the shop's voice."))
+    }
+
+    @Test("Instructions with a state are unchanged")
+    func statefulInstructionsAreUnchanged() {
+        let expected = """
+            You answer questions about a state.
+
+            Read the state, then answer every question.
+            Reply with JSON only. It must match the schema: one field per question,
+            every field present.
+            Be literal. Judge what the state says, and add nothing to it.
+            For a choice question, give exactly one option id from that question's list.
+            For a rating question, give the index of the level that fits.
+            For a yes or no question, give true or false.
+            """
+
+        #expect(DecisionPromptBuilder.instructions() == expected)
+        #expect(DecisionPromptBuilder.instructions(adding: nil, hasState: true) == expected)
+    }
+
+    @Test("A null state is no state for the instructions")
+    func nullStateCarriesNothingToJudge() {
+        #expect(DecisionPromptBuilder.hasState(.null) == false)
+        #expect(DecisionPromptBuilder.hasState(nil) == false)
+        #expect(DecisionPromptBuilder.hasState(.text("")) == true)
     }
 
     @Test("Structured instructions become JSON")

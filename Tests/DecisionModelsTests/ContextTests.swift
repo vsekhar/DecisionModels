@@ -102,6 +102,24 @@ struct ContextTests {
         #expect(try state(of: model) == nil)
     }
 
+    @Test("A null state with a context sends the context alone")
+    func nullStateSendsTheContext() async throws {
+        let (session, model) = session(context: ["policy": "Refunds within 30 days"])
+
+        _ = try await session.decide(Questionnaire { question }, about: State.null)
+
+        #expect(try state(of: model) == .object(["policy": .text("Refunds within 30 days")]))
+    }
+
+    @Test("A null state with no context passes through")
+    func nullStateWithNoContext() async throws {
+        let (session, model) = session(context: [:])
+
+        _ = try await session.decide(Questionnaire { question }, about: State.null)
+
+        #expect(try state(of: model) == .null)
+    }
+
     @Test("An empty context passes the state through")
     func emptyContextPassesThrough() async throws {
         let (session, model) = session(context: [:])

@@ -77,6 +77,53 @@ struct GuidedGenerationLiveTests {
             + "usage=\(session.usage)")
     }
 
+    /// The control is unrelated on purpose: asked two capitals questions in
+    /// one request, this model answers both false.
+    @Test("The model answers questions that carry their own facts")
+    func noState() async throws {
+        guard #available(macOS 26, iOS 26, *) else { return needsMacOS26() }
+        guard modelIsReady() else { return }
+        let session = DecisionSession(model: GuidedGenerationModel(.default))
+
+        let questionnaire = Questionnaire {
+            Verify("capital", "Is Paris the capital of France?")
+            Verify("control", "Is the Moon made of cheese?")
+        }
+
+        let answers = try await session.decide(questionnaire)
+
+        guard case .verdict(let capital)? = answers.records["capital"],
+              case .verdict(let control)? = answers.records["control"]
+        else {
+            Issue.record("The answers are not verdicts.")
+            return
+        }
+        // One sample is one-hot: the model either says it or it does not.
+        #expect(capital == 1)
+        #expect(control == 0)
+
+        print("LIVE no state: capital=\(capital) control=\(control)")
+
+        guard #available(macOS 26.4, iOS 26.4, *) else { return }
+        // The same three texts the adapter sends with no state, counted here
+        // on their own. They pin the stateless instructions to the wire.
+        let model = SystemLanguageModel.default
+        let built = try SchemaBuilder.build(questionnaire)
+        let instructions = DecisionPromptBuilder.instructions(hasState: false)
+        let prompt = DecisionPromptBuilder.prompt(
+            state: nil,
+            questionnaire: questionnaire,
+            fieldNames: built.fieldNames
+        )
+        let expected = try await model.tokenCount(for: instructions)
+            + model.tokenCount(for: prompt)
+            + model.tokenCount(for: built.schema)
+
+        #expect(session.usage.inputTokens == expected)
+        print("LIVE no state usage: inputTokens=\(session.usage.inputTokens) "
+            + "expected=\(expected)")
+    }
+
     @Test("Three samples give an empirical distribution")
     func threeSamples() async throws {
         guard #available(macOS 26, iOS 26, *) else { return needsMacOS26() }
@@ -194,7 +241,7 @@ struct GuidedGenerationLiveTests {
 
 // MARK: Fixtures
 
-/// The run-time questionnaire the first two tests ask.
+/// The run-time questionnaire most tests here ask.
 ///
 /// Every criterion here is a plain summary to keep the prompt short; the
 /// adapter also takes structured criteria and renders them as text.

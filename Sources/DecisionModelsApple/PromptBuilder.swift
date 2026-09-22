@@ -21,24 +21,44 @@ enum DecisionPromptBuilder {
     /// Counts the tokens of a text.
     typealias TokenCounter = @Sendable (String) async throws -> Int
 
+    /// Whether a request carries material to judge. `nil` and `.null` do not.
+    static func hasState(_ state: State?) -> Bool {
+        state != nil && state != .null
+    }
+
     // MARK: Instructions
 
     /// The standing instructions of the session.
     ///
+    /// With no state, they leave out the lines about the state and let the
+    /// model answer from the question and what it knows.
+    ///
     /// The caller's own instructions follow the task, so they can add rules
     /// without losing the ones the schema needs.
-    static func instructions(adding extra: String? = nil) -> String {
-        var lines = [
-            "You answer questions about a state.",
-            "",
-            "Read the state, then answer every question.",
-            "Reply with JSON only. It must match the schema: one field per question,",
-            "every field present.",
-            "Be literal. Judge what the state says, and add nothing to it.",
-            "For a choice question, give exactly one option id from that question's list.",
-            "For a rating question, give the index of the level that fits.",
-            "For a yes or no question, give true or false.",
-        ]
+    static func instructions(adding extra: String? = nil, hasState: Bool = true) -> String {
+        var lines =
+            hasState
+            ? [
+                "You answer questions about a state.",
+                "",
+                "Read the state, then answer every question.",
+                "Reply with JSON only. It must match the schema: one field per question,",
+                "every field present.",
+                "Be literal. Judge what the state says, and add nothing to it.",
+                "For a choice question, give exactly one option id from that question's list.",
+                "For a rating question, give the index of the level that fits.",
+                "For a yes or no question, give true or false.",
+            ]
+            : [
+                "You answer questions.",
+                "",
+                "Answer every question from the question itself and what you know.",
+                "Reply with JSON only. It must match the schema: one field per question,",
+                "every field present.",
+                "For a choice question, give exactly one option id from that question's list.",
+                "For a rating question, give the index of the level that fits.",
+                "For a yes or no question, give true or false.",
+            ]
         if let extra, !extra.isEmpty {
             lines.append("")
             lines.append(extra)
@@ -58,7 +78,7 @@ enum DecisionPromptBuilder {
         fieldNames: [String: String]
     ) -> String {
         var out = ""
-        if let state {
+        if let state, hasState(state) {
             out += "STATE\n"
             out += json(state)
             out += "\n"

@@ -109,6 +109,46 @@ extension DecisionSession {
         maxDepth: Int = 8,
         options: DecisionOptions? = nil
     ) async throws -> [HierarchicalChoice<Option>] {
+        try await classify(
+            roots,
+            instructions: instructions,
+            state: state.stateRepresentation,
+            beamWidth: beamWidth,
+            maxDepth: maxDepth,
+            options: options
+        )
+    }
+
+    /// Classifies with no state, for trees whose questions carry their own
+    /// facts. The standing context, if any, is the whole state.
+    ///
+    /// See the overload above for the walk's rules.
+    public func classify<Option: ChoiceOption>(
+        _ roots: [OptionTree<Option>],
+        instructions: State,
+        beamWidth: Int = 1,
+        maxDepth: Int = 8,
+        options: DecisionOptions? = nil
+    ) async throws -> [HierarchicalChoice<Option>] {
+        try await classify(
+            roots,
+            instructions: instructions,
+            state: nil,
+            beamWidth: beamWidth,
+            maxDepth: maxDepth,
+            options: options
+        )
+    }
+
+    /// The walk both overloads above run. Only the state differs.
+    private func classify<Option: ChoiceOption>(
+        _ roots: [OptionTree<Option>],
+        instructions: State,
+        state: State?,
+        beamWidth: Int,
+        maxDepth: Int,
+        options: DecisionOptions?
+    ) async throws -> [HierarchicalChoice<Option>] {
         precondition(beamWidth >= 1, "A beam holds at least one path.")
         precondition(maxDepth >= 1, "A walk takes at least one step.")
         guard !roots.isEmpty else { return [] }
@@ -129,7 +169,12 @@ extension DecisionSession {
             }
             guard !questions.isEmpty else { break }
 
-            let answers = try await decide(questionnaire, about: state, options: options)
+            let answers: Answers
+            if let state {
+                answers = try await decide(questionnaire, about: state, options: options)
+            } else {
+                answers = try await decide(questionnaire, options: options)
+            }
             var grown: [BeamCandidate<Option>] = []
             for (place, candidate) in candidates.enumerated() {
                 guard let question = questions[place] else {

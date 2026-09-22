@@ -16,9 +16,10 @@ public final class DecisionSession: Sendable {
     /// Builds a session.
     ///
     /// The context is standing material that merges into the state of every
-    /// call: an object state gains the fields, any other state moves under
-    /// `state` beside them. It renders once, here, so the session holds only
-    /// `Sendable` values.
+    /// call: an object state gains the fields, a `.null` state or none gives
+    /// the context alone, and any other state moves under `state` beside
+    /// them. It renders once, here, so the session holds only `Sendable`
+    /// values.
     ///
     /// `options` are the defaults for every call. A per-call `options` value
     /// replaces them entirely; to change one field, copy `session.options`
@@ -265,11 +266,12 @@ public final class DecisionSession: Sendable {
     /// An object state gains the context fields, and the state wins when both
     /// hold the same key. Any other state becomes the `state` field of an
     /// object that also holds the context. No state with a context gives the
-    /// context alone. An empty context leaves the state alone.
+    /// context alone. A `.null` state counts as no state. An empty context
+    /// leaves the state alone.
     private func merged(_ state: State?) -> State? {
         guard !context.isEmpty else { return state }
         var object = context
-        if let state {
+        if let state, state != .null {
             if case .object(let fields) = state {
                 for (name, value) in fields { object[name] = value }
             } else {

@@ -125,6 +125,22 @@ struct HierarchyTests {
         #expect(model.requests[0].state == .text(message))
     }
 
+    @Test("A walk with no state sends no state")
+    func walkWithoutState() async throws {
+        let model = treeModel(branchTable)
+        let session = DecisionSession(model: model)
+
+        let results = try await session.classify(
+            supportAndSales,
+            instructions: instructions
+        )
+
+        let best = try #require(results.first)
+        #expect(best.path.map(\.id) == ["support", "refund"])
+        #expect(model.callCount == 2)
+        #expect(model.requests.map(\.state) == [nil, nil])
+    }
+
     @Test("A beam of two keeps two paths and asks both sibling sets at once")
     func beamOfTwo() async throws {
         let model = treeModel(branchTable)

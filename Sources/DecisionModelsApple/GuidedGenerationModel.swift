@@ -104,7 +104,10 @@ public struct GuidedGenerationModel: DecisionModel {
         let deadline = request.timeout.map { clock.now + $0 }
 
         let built = try SchemaBuilder.build(request.questionnaire)
-        let instructions = DecisionPromptBuilder.instructions(adding: extraInstructions)
+        let instructions = DecisionPromptBuilder.instructions(
+            adding: extraInstructions,
+            hasState: DecisionPromptBuilder.hasState(request.state)
+        )
         let prompt = DecisionPromptBuilder.prompt(
             state: request.state,
             questionnaire: request.questionnaire,
