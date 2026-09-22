@@ -29,10 +29,10 @@ swift test --filter DecisionModelsMacrosTests
 
 ## Live tests against Jev
 
-The Jev suite makes three requests to TypeSafe's service. It reads
-`TYPESAFE_API_KEY` from the environment and **fails** when the variable is
-absent; it never skips. Put the key in `.env` (ignored by git) and source
-it for one command:
+The Jev suite makes three requests to TypeSafe's service, one of them a
+question with no state. It reads `TYPESAFE_API_KEY` from the environment
+and **fails** when the variable is absent; it never skips. Put the key in
+`.env` (ignored by git) and source it for one command:
 
 ```sh
 set -a; . ./.env; set +a; swift test --filter JevLive
@@ -43,9 +43,10 @@ Do not print the key, and do not commit `.env`.
 ## Live tests against OpenRouter
 
 The OpenRouter suite makes two requests to OpenRouter's alpha Decisions
-endpoint with `typesafe/jev-1.13`. It reads `OPENROUTER_API_KEY` from the
-environment and **fails** when the variable is absent; it never skips. Put
-the key in `.env` beside the TypeSafe key and source it for one command:
+endpoint with `typesafe/jev-1.13`, one of them a question with no state.
+It reads `OPENROUTER_API_KEY` from the environment and **fails** when the
+variable is absent; it never skips. Put the key in `.env` beside the
+TypeSafe key and source it for one command:
 
 ```sh
 set -a; . ./.env; set +a; swift test --filter OpenRouterLive
@@ -56,6 +57,9 @@ set -a; . ./.env; set +a; swift test --filter OpenRouterLive
 The Apple suite needs a Mac with Apple Intelligence turned on and the
 model downloaded. It **fails** when the system model is unavailable; it
 never skips. Each live call takes a second or so.
+One test asks two questions with no state, which the on-device model
+answers from what it knows. Its control question is unrelated on purpose:
+asked two capitals questions in one request, this model answers both false.
 
 ```sh
 swift test --filter DecisionModelsAppleTests
@@ -83,6 +87,8 @@ let offline = DecisionSession(model: replay)
 ```
 
 A replay matches on the state, the questionnaire, and the sample count.
+A request with no state matches only a record with none, and a `.null`
+state written to a file comes back as no state.
 Metadata and timeout do not affect the match. Record fixtures from real
 reads, not from plain-value decisions: a certain choice record lists one
 option, a read lists them all.

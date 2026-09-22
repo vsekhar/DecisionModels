@@ -587,6 +587,21 @@ Question text can name fields with backtick dot paths, such as
 `` `order.items[0]` ``, following the Jev convention. Providers that render
 state as text keep the same field names, so the references stay valid.
 
+A request can carry no state. When the questions carry their own facts, the
+caller leaves `about:` out, and `DecisionRequest.state` is `nil`:
+
+```swift
+let capital = Verify("capital", "Is Atlanta the capital of Georgia?")
+let answers = try await session.decide(Questionnaire { capital })
+try answers[capital].probability   // 0.97 on Jev
+```
+
+With a standing context, the context alone is the state. A `.null` state
+counts as no state: the session drops it before anything else sees it,
+every provider sends the same body for either, and through JSON the two
+come out the same. The core never substitutes a value. A provider does,
+when its API requires one, and says so in section 10.1.
+
 A session can hold standing context, the decision-model analogue of Apple's
 `instructions`. It merges into every request's state object:
 
@@ -622,11 +637,20 @@ public final class DecisionSession: Sendable {
                                    options: DecisionOptions? = nil) async throws -> A where A.Projection: Decision
     public func respond<A: Askable>(_ type: A.Type = A.self, about state: some StateRepresentable,
                                     options: DecisionOptions? = nil) async throws -> DecisionResponse<A.Projection> where A.Projection: Decision
+    public func decide<A: Askable>(_ type: A.Type = A.self, options: DecisionOptions? = nil,
+                                   @StateBuilder about state: () throws -> State) async throws -> A where A.Projection: Decision
 
     // Run-time questions (section 9).
     public func decide(_ questionnaire: Questionnaire,
                        about state: some StateRepresentable,
                        options: DecisionOptions? = nil) async throws -> Answers
+
+    // The same calls with no state, for questions that carry their own facts.
+    public func decide<D: Decision>(_ type: D.Type = D.self, options: DecisionOptions? = nil) async throws -> D
+    public func respond<D: Decision>(_ type: D.Type = D.self, options: DecisionOptions? = nil) async throws -> DecisionResponse<D>
+    public func decide<A: Askable>(_ type: A.Type = A.self, options: DecisionOptions? = nil) async throws -> A where A.Projection: Decision
+    public func respond<A: Askable>(_ type: A.Type = A.self, options: DecisionOptions? = nil) async throws -> DecisionResponse<A.Projection> where A.Projection: Decision
+    public func decide(_ questionnaire: Questionnaire, options: DecisionOptions? = nil) async throws -> Answers
 
     public var model: any DecisionModel { get }
     public var options: DecisionOptions { get }   // the defaults every call starts from
@@ -815,7 +839,7 @@ public protocol DecisionModel: Sendable {
 }
 
 public struct DecisionRequest: Sendable, Codable, Hashable {
-    public let state: State
+    public let state: State?   // nil when the questions carry their own facts
     public let questionnaire: Questionnaire
     public let samples: Int
     public let timeout: Duration?
@@ -872,6 +896,9 @@ richer one as an object with `what` or `summary`, `not_for`, `examples`,
 model unavailable with `.notConfigured`. Reports `.calibrated`, 255
 options, 10 levels, 64k context, no repeated samples. Keeps the returned
 `choice`, `score`, and `confidence` fields verbatim in the answer records.
+A request with no state, or with a `.null` state, sends an empty string,
+because the service requires a state and rejects a bare `null`; the model
+then answers from the questions alone.
 
 ```swift
 Jev(version: "jev-latest")
@@ -922,7 +949,8 @@ names the model; there is no default and no model list, because
 OpenRouter documents none. Declares Jev's capabilities and `.calibrated`,
 an assumption tied to `typesafe/jev-1.13`, the one decision model the
 alpha serves. Sends `model`, `state`, and `questions` only, and never
-`provider`, `session_id`, `user`, or `trace`. Drops `cost`. Requires
+`provider`, `session_id`, `user`, or `trace`; for no state it sends the
+same empty string as Jev. Drops `cost`. Requires
 `probabilities` in every choice and score answer, although the docs mark
 them optional, because a calibrated answer needs a distribution; a reply
 without one is malformed. Retries 429, 502, 503, 524, and 529 through the
@@ -966,7 +994,10 @@ an integer with `range(0...n-1)` for rating, a `Bool` for yes/no. Dotted
 question ids map to safe property names and back. State, instructions, and
 criteria go into the prompt as text and JSON, so the adapter declares
 `structuredCriteria` and `structuredInstructions` true: it renders what
-Jev takes natively, and the caller never knows the difference. One
+Jev takes natively, and the caller never knows the difference. With no
+state, or a `.null` one, the prompt has no `STATE` block, and the standing
+instructions drop the lines that tell the model to judge only the state, so
+it answers from the question and what it knows. One
 `respond(schema:)` call answers the whole batch, so batching survives the
 change of provider. Before it sends, it estimates tokens with
 `tokenCount(for:)` and throws `contextSizeExceeded` when the instructions,
@@ -1029,7 +1060,9 @@ normalizes each run before averaging, drops reported confidence so the
 section 6.1 formula applies, and keeps `.calibrated` only when every
 calibrated run agreed; with one draw it reports the inner quality
 unchanged. Put a cache outside a consensus, never inside: a cache inside
-serves every draw the same answer. `CacheKey` ignores metadata and timeout.
+serves every draw the same answer. `CacheKey` ignores metadata and timeout,
+and keeps a request with no state apart from one about an empty object or
+an empty string, although the wire cannot tell the last two apart.
 `DecisionCache` is a protocol with an in-memory actor implementation that
 evicts oldest first when given a capacity.
 
@@ -1195,8 +1228,9 @@ Module `DecisionModelsTesting`.
   carries the options metadata), the `ModelResponse`, the model identity,
   the duration, and the time of recording. Replay keys on the state, the
   questionnaire, and the sample count; metadata and timeout do not affect
-  the key. Record fixtures from reads, not from plain-value decisions: a
-  certain choice record lists one option, a read lists them all.
+  the key. A record whose state was `.null` decodes with no state, so it
+  replays only in memory. Record fixtures from reads, not from plain-value
+  decisions: a certain choice record lists one option, a read lists them all.
 - **`Evaluation`** runs a labeled set through one or more models and
   reports, per question, accuracy, Brier score, and expected calibration
   error, plus per-band counts for a candidate threshold. Accuracy compares
@@ -1226,7 +1260,7 @@ print(report[latest.identity]?.question("team")?.brierScore ?? .nan)
 | Batch | one request, parallel evaluation | as Jev | one schema object, one generation | model decides |
 | Probabilities | calibrated; reported confidence | as Jev | one-hot, or empirical from k samples; computed confidence | declared in capabilities |
 | Structured criteria and instructions | native JSON | as Jev | rendered to text; declared as accepted | declared in capabilities |
-| State | string, object, array | as Jev | JSON in the prompt | any |
+| State | string, object, array; `""` for none | as Jev | JSON in the prompt; no block for none | any |
 | Limits | 255 options, 2 to 10 levels, 64k tokens | as Jev | 64 options, 2 to 10 levels, the device's context (4096 tokens); refused before sending | declared in capabilities |
 | Unavailable | no key, offline, 401 | no key, offline, 401 and 403; 402 for credits | device not eligible, Apple Intelligence off, model not ready | declared |
 
@@ -1301,7 +1335,8 @@ All four are built.
   payload per case, as section 5.1 describes: one choice over the cases
   plus every case's arguments in one request, only the chosen case
   decoded, the probabilities on the nested `Answered` projection.
-- **Hierarchical choice.** `DecisionSession.classify(_:instructions:about:beamWidth:maxDepth:options:)`
+- **Hierarchical choice.** `DecisionSession.classify(_:instructions:about:beamWidth:maxDepth:options:)`,
+  with or without `about:`,
   walks a tree of `OptionTree` nodes over any `ChoiceOption` with beam
   search, one request per depth, as in the Jev hierarchical classification
   recipe. Every candidate that can still go deeper asks one `Choose` over

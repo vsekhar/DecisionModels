@@ -5,8 +5,8 @@
 
 Typed questions for decision models, in Swift.
 
-A decision model does not write text. It reads some state, answers a fixed
-set of questions, and returns a probability for each possible answer.
+A decision model does not write text. It reads some state, or none, answers
+a fixed set of questions, and returns a probability for each possible answer.
 DecisionModels lets you declare those questions as a Swift type, ask them
 in one call, and read the answers as plain Swift values with the full
 probabilities one prefix away. The model behind the call can be a hosted
@@ -71,6 +71,14 @@ The struct is the question set. An `@Options` enum is a choice, an
 One struct is one request, so every question travels together. `triage.team`
 is a `Team`; `triage.$team` is the `Choice<Team>` behind it, with the
 probabilities, the model's confidence, and the value the model named.
+
+Questions that carry their own facts need no state. Leave `about:` out:
+
+```swift
+let capital = Verify("capital", "Is Atlanta the capital of Georgia?")
+let answers = try await session.decide(Questionnaire { capital })
+try answers[capital].probability   // 0.97
+```
 
 ## Adding the package
 
@@ -193,8 +201,9 @@ question, which is how to pick thresholds on your own data.
 - **Commands.** `@Decision("Which command does the user want?") enum Command`
   with one `@Decision` struct per case asks for the command and every
   case's arguments in one request, and decodes only the chosen case.
-- **Hierarchies.** `session.classify(tree, instructions:about:beamWidth:)`
-  walks a tree of options with beam search, one request per depth.
+- **Hierarchies.** `session.classify(tree, instructions:about:beamWidth:)`,
+  with or without `about:`, walks a tree of options with beam search, one
+  request per depth.
 - **Composite scores.** `CompositeScore { Weighted(0.4, "reach", reach); ... }`
   sums ratings with the weights visible and the weakest confidence exposed.
 
