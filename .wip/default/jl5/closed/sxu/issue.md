@@ -2,7 +2,7 @@
 priority: p3
 type: task
 created: 2026-09-22T16:50:52-04:00
-updated: 2026-09-22T17:51:22-04:00
+updated: 2026-09-22T19:10:05-04:00
 blocked-on:
   - e7t
 ---
@@ -46,3 +46,15 @@ Inside the walk, the one call `decide(questionnaire, about: state, options: opti
 
 ### Checks
 `swift test -Xswiftc -warnings-as-errors --skip GuidedGenerationLiveTests --skip JevLive --skip OpenRouterLive`.
+
+---
+
+_📝 Noted on 2026-09-22 18:48:24-04:00 @ git:6c76094+local_
+
+Progress 2026-09-22: implemented by one worker with wip/169, wip/sxu, and wip/in4 together; the diff matches the records. Offline suite with warnings as errors: 477 tests pass, 5 new offline. Apple live suite on this Mac: 6 tests pass; the new stateless test observed capital 1.0 ('Is Paris the capital of France?') and control 0.0 ('Is the Moon made of cheese?'). Verifier next, then CI on a branch. Worker's judgement calls kept: the private core carries the doc line 'The walk both overloads above run. Only the state differs.'; the per-depth call is an if/else on the optional state because an if expression cannot hold try await in both branches; the new overload's doc ends 'See the overload above for the walk's rules.'
+
+---
+
+_📝 Noted on 2026-09-22 19:10:05-04:00 @ git:6d17446+local_
+
+Closed 2026-09-22. Commit 6d17446 on branch stateless-apple-hierarchy, merged to main. CI run 35795731059 green on macOS, Linux, and the iOS build. All acceptance criteria met. classify(_:instructions:beamWidth:maxDepth:options:) with no about: shares the walk with the existing overload; one test pins nil states on every level.

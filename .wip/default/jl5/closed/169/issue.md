@@ -2,7 +2,7 @@
 priority: p2
 type: task
 created: 2026-09-22T16:50:52-04:00
-updated: 2026-09-22T17:50:51-04:00
+updated: 2026-09-22T19:10:05-04:00
 blocked-on:
   - e7t
 may-unblock:
@@ -73,3 +73,39 @@ So the stateless text drops "about a state" from the first line, replaces "Read 
 
 ### Checks
 `swift test -Xswiftc -warnings-as-errors --skip GuidedGenerationLiveTests --skip JevLive --skip OpenRouterLive`, then `swift test --filter GuidedGenerationLiveTests` on this Mac. Record the observed probabilities in the issue.
+
+---
+
+_📝 Noted on 2026-09-22 18:41:59-04:00 @ git:6c76094+local_
+
+Design record amendment, 2026-09-22, after the worker's first live run: the on-device model answered 'Is Atlanta the capital of Georgia?' with capital 0.0 and the control 'Is Paris the capital of Germany?' with 0.0, twice. The control is right and the answer is well formed and one-hot, so the stateless prompt and instructions work; the small local model most likely reads Georgia as the country. Two decisions. (1) The stateless instruction line 'Answer every question from what it says and what you know.' had no referent for 'it'; it becomes, verbatim, 'Answer every question from the question itself and what you know.' The instruction test's 'what you know' assertion still holds. (2) The live test asks 'Is Atlanta the capital of the U.S. state of Georgia?' with the same control; if the model still answers below 1, it asks 'Is Paris the capital of France?' as capital with 'Is Paris the capital of Germany?' as control instead. The expectations stay one-hot: capital 1, control 0. The worker probes each variant once and reports the probabilities; the winning variant and the numbers go in the closing note. Jev and OpenRouter keep the plain Atlanta question, which they answer at 0.97.
+
+---
+
+_📝 Noted on 2026-09-22 18:46:44-04:00 @ git:6c76094+local_
+
+Second amendment, 2026-09-22. Both variants in the first amendment fail: capital 0.0 with the disambiguated Atlanta question, and 0.0 for 'Is Paris the capital of France?' when paired with the Paris/Germany control. The worker's probes show why: alone, Paris/France answers 1.0; paired with any second capitals question, true or false, both fields come back 0.0; paired with 'Is the Moon made of cheese?' it answers 1.0 and the control 0.0; and Atlanta answers 0.0 even alone. That two-field collapse is a limit of the on-device model, not of this change, and is filed as wip/bte. Decision: the live test asks capital 'Is Paris the capital of France?' and control 'Is the Moon made of cheese?', expectations one-hot 1 and 0. It proves what wip/169 needs: with no state the model answers from what it knows and does not answer yes to everything. Jev and OpenRouter keep the plain Atlanta question.
+
+---
+
+_📝 Noted on 2026-09-22 18:48:24-04:00 @ git:6c76094+local_
+
+Progress 2026-09-22: implemented by one worker with wip/169, wip/sxu, and wip/in4 together; the diff matches the records. Offline suite with warnings as errors: 477 tests pass, 5 new offline. Apple live suite on this Mac: 6 tests pass; the new stateless test observed capital 1.0 ('Is Paris the capital of France?') and control 0.0 ('Is the Moon made of cheese?'). Verifier next, then CI on a branch. Worker's judgement calls kept: the doc sentence sits as its own paragraph after the summary line; the two line sets are separate literal arrays chosen by a ternary, so the stateful text is unchanged byte for byte.
+
+---
+
+_📝 Noted on 2026-09-22 18:57:24-04:00 @ git:6c76094+local_
+
+Verifier 2026-09-22: no blocker; notes acted on: the 'unchanged' instruction test now asserts the whole stateful text against a literal instead of comparing the function with itself; the live test also checks the hasState wiring through the usage count, as usageAddsUp does; the fixture comment and the tracker id in the live test's doc comment are replaced by plain wording. Apple's .null handling is recorded on wip/in4.
+
+---
+
+_📝 Noted on 2026-09-22 19:05:51-04:00 @ git:6c76094+local_
+
+Follow-ups applied 2026-09-22: the stateful text is pinned to a literal; hasState(_:) treats .null as no state; the live test checks usage (190 tokens observed, 190 expected) after the expectations, under a plain 26.4 guard so an older OS still runs the main claim. Apple offline suite 48 tests, live suite 6, all green.
+
+---
+
+_📝 Noted on 2026-09-22 19:10:05-04:00 @ git:6d17446+local_
+
+Closed 2026-09-22. Commit 6d17446 on branch stateless-apple-hierarchy, merged to main. CI run 35795731059 green on macOS, Linux, and the iOS build. All acceptance criteria met. Live on this Mac: capital 'Is Paris the capital of France?' 1.0, control 'Is the Moon made of cheese?' 0.0, stateless usage 190 tokens as counted. The plain Atlanta question stays on Jev and OpenRouter; the on-device model answers it false under every wording, and pairs of capitals questions collapse, see wip/bte.
