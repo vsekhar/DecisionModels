@@ -75,7 +75,7 @@ probabilities, the model's confidence, and the value the model named.
 ## Adding the package
 
 ```swift
-.package(url: "<this repository>", from: "0.2.0")
+.package(url: "<this repository>", from: "0.2.1")
 ```
 
 | Product | Import it for |
