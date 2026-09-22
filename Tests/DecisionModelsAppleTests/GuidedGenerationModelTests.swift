@@ -48,9 +48,16 @@ struct GuidedGenerationModelTests {
     func samplingOptions() {
         guard #available(macOS 26, iOS 26, *) else { return needsMacOS26() }
 
-        #expect(GuidedGenerationModel.generationOptions(samples: 1).sampling == .greedy)
+        let one = GuidedGenerationModel.generationOptions(samples: 1)
         let many = GuidedGenerationModel.generationOptions(samples: 3)
+        // The 27 SDK renames `sampling` to `samplingMode`; see generationOptions.
+        #if canImport(FoundationModels, _version: 2.0)
+        #expect(one.samplingMode == .greedy)
+        #expect(many.samplingMode != .greedy)
+        #else
+        #expect(one.sampling == .greedy)
         #expect(many.sampling != .greedy)
+        #endif
         #expect(many.temperature == 1.0)
     }
 
