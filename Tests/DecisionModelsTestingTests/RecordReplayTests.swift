@@ -142,6 +142,31 @@ struct RecordReplayTests {
         }
     }
 
+    @Test("A replay matches a request with no state")
+    func replayMatchesNoState() async throws {
+        let scripted = ScriptedModel(answering: triageAnswers)
+        let recorder = Recorder()
+        let session = DecisionSession(model: RecordingModel(scripted, into: recorder))
+
+        let triage: TicketTriage = try await session.decide()
+        #expect(triage.team == .returns)
+
+        let records = await recorder.records
+        let replay = ReplayModel(records: records)
+        let recorded = try #require(records.first).request
+        #expect(recorded.state == nil)
+        #expect(replay.holds(recorded))
+        #expect(try await replay.decide(recorded).answers == triageAnswers)
+
+        // A state of `.object([:])` is a different request, so it misses.
+        let empty = DecisionRequest(
+            state: .object([:]),
+            questionnaire: recorded.questionnaire,
+            samples: recorded.samples
+        )
+        #expect(!replay.holds(empty))
+    }
+
     @Test("An empty replay reports a point estimate and a test identity")
     func emptyReplay() async throws {
         let replay = ReplayModel(records: [])

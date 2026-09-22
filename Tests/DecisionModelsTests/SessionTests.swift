@@ -166,6 +166,18 @@ struct SessionTests {
         }
     }
 
+    @Test("A decision asks with no state")
+    func decideWithNoState() async throws {
+        let model = FakeModel(answers: triageAnswers)
+        let session = DecisionSession(model: model)
+
+        let triage: TicketTriage = try await session.decide()
+
+        let request = try #require(model.requests.first)
+        #expect(request.state == nil)
+        #expect(triage.team == .returns)
+    }
+
     @Test("The state builder assembles the state")
     func stateBuilder() async throws {
         let model = FakeModel(answers: triageAnswers)

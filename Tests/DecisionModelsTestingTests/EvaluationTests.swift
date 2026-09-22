@@ -38,7 +38,7 @@ struct EvaluationTests {
         }
         let answered = script
         return ScriptedModel { request in
-            guard let answers = answered[request.state] else {
+            guard let state = request.state, let answers = answered[state] else {
                 throw DecisionError.malformedResponse("The script has no answer for this state.")
             }
             return answers

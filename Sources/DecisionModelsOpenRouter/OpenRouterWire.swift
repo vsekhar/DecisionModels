@@ -16,8 +16,9 @@ import Foundation
 struct OpenRouterRequest: Encodable, Sendable {
     /// The model, in OpenRouter's `vendor/model` form.
     var model: String
-    /// The material to judge: a text, an object, or an array.
-    var state: State
+    /// The material to judge: a text, an object, or an array. Absent when the
+    /// request has none; the encoder then omits the field.
+    var state: State?
     /// The questions, by id.
     var questions: [String: Question]
 

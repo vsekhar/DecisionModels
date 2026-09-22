@@ -59,6 +59,15 @@ public final class DecisionSession: Sendable {
         try await respond(type, about: state, options: options).decision
     }
 
+    /// Asks with no state, for questions that carry their own facts. The
+    /// standing context, if any, is the whole state.
+    public func decide<D: Decision>(
+        _ type: D.Type = D.self,
+        options: DecisionOptions? = nil
+    ) async throws -> D {
+        try await respond(type, options: options).decision
+    }
+
     /// Asks about a state the builder assembles.
     public func decide<D: Decision>(
         _ type: D.Type = D.self,
@@ -76,6 +85,15 @@ public final class DecisionSession: Sendable {
         options: DecisionOptions? = nil
     ) async throws -> DecisionResponse<D> {
         try await answer(D.self, about: state.stateRepresentation, options: options)
+    }
+
+    /// Asks with no state, for questions that carry their own facts. The
+    /// standing context, if any, is the whole state.
+    public func respond<D: Decision>(
+        _ type: D.Type = D.self,
+        options: DecisionOptions? = nil
+    ) async throws -> DecisionResponse<D> {
+        try await answer(D.self, about: nil, options: options)
     }
 
     // MARK: Deciding through a projection
@@ -100,6 +118,17 @@ public final class DecisionSession: Sendable {
         let response = try await answer(
             A.Projection.self, about: state.stateRepresentation, options: options
         )
+        return A.read(response.decision)
+    }
+
+    /// Asks with no state, for questions that carry their own facts. The
+    /// standing context, if any, is the whole state. A plain `Decision` binds
+    /// to the `Decision` call above.
+    public func decide<A: Askable>(
+        _ type: A.Type = A.self,
+        options: DecisionOptions? = nil
+    ) async throws -> A where A.Projection: Decision {
+        let response = try await answer(A.Projection.self, about: nil, options: options)
         return A.read(response.decision)
     }
 
@@ -129,11 +158,21 @@ public final class DecisionSession: Sendable {
         try await answer(A.Projection.self, about: state.stateRepresentation, options: options)
     }
 
+    /// Asks with no state, for questions that carry their own facts. The
+    /// standing context, if any, is the whole state. A plain `Decision` binds
+    /// to the `Decision` call above.
+    public func respond<A: Askable>(
+        _ type: A.Type = A.self,
+        options: DecisionOptions? = nil
+    ) async throws -> DecisionResponse<A.Projection> where A.Projection: Decision {
+        try await answer(A.Projection.self, about: nil, options: options)
+    }
+
     /// The one path a decision takes, whichever call asked for it. The
     /// overloads above name the type; this one runs it.
     private func answer<D: Decision>(
         _ type: D.Type,
-        about state: State,
+        about state: State?,
         options: DecisionOptions?
     ) async throws -> DecisionResponse<D> {
         let clock = ContinuousClock()
@@ -173,11 +212,20 @@ public final class DecisionSession: Sendable {
         ).answers
     }
 
+    /// Asks with no state, for questions that carry their own facts. The
+    /// standing context, if any, is the whole state.
+    public func decide(
+        _ questionnaire: Questionnaire,
+        options: DecisionOptions? = nil
+    ) async throws -> Answers {
+        try await send(questionnaire, about: nil, options: options ?? defaults).answers
+    }
+
     // MARK: The pipeline
 
     private func send(
         _ questionnaire: Questionnaire,
-        about state: State,
+        about state: State?,
         options: DecisionOptions
     ) async throws -> ModelResponse {
         if case .unavailable(let reason) = await decisionModel.availability {
@@ -216,15 +264,17 @@ public final class DecisionSession: Sendable {
     ///
     /// An object state gains the context fields, and the state wins when both
     /// hold the same key. Any other state becomes the `state` field of an
-    /// object that also holds the context. An empty context leaves the state
-    /// alone.
-    private func merged(_ state: State) -> State {
+    /// object that also holds the context. No state with a context gives the
+    /// context alone. An empty context leaves the state alone.
+    private func merged(_ state: State?) -> State? {
         guard !context.isEmpty else { return state }
         var object = context
-        if case .object(let fields) = state {
-            for (name, value) in fields { object[name] = value }
-        } else {
-            object["state"] = state
+        if let state {
+            if case .object(let fields) = state {
+                for (name, value) in fields { object[name] = value }
+            } else {
+                object["state"] = state
+            }
         }
         return .object(object)
     }

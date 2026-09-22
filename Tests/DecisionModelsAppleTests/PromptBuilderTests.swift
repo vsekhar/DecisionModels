@@ -26,6 +26,19 @@ struct PromptBuilderTests {
         #expect(prompt.contains("\"vip\": true"))
     }
 
+    @Test("A prompt with no state starts at the first question")
+    func noStateStartsAtTheFirstQuestion() {
+        let stateless = DecisionPromptBuilder.prompt(
+            state: nil,
+            questionnaire: promptQuestionnaire,
+            fieldNames: ["team": "team", "bug.severity": "bug_severity", "refund": "refund"]
+        )
+
+        #expect(!stateless.contains("STATE"))
+        #expect(!stateless.contains("null"))
+        #expect(stateless.hasPrefix("## "))
+    }
+
     @Test("The prompt names every question")
     func namesEveryQuestion() {
         for spec in promptQuestionnaire.specs {

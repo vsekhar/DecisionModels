@@ -16,7 +16,7 @@ struct ContextTests {
         return (DecisionSession(model: model, context: context), model)
     }
 
-    private func state(of model: FakeModel) throws -> State {
+    private func state(of model: FakeModel) throws -> State? {
         try #require(model.requests.first).state
     }
 
@@ -82,6 +82,24 @@ struct ContextTests {
                     "policy": .text("Refunds within 30 days"),
                 ])
         )
+    }
+
+    @Test("No state with a context sends the context alone")
+    func noStateSendsTheContext() async throws {
+        let (session, model) = session(context: ["policy": "Refunds within 30 days"])
+
+        _ = try await session.decide(Questionnaire { question })
+
+        #expect(try state(of: model) == .object(["policy": .text("Refunds within 30 days")]))
+    }
+
+    @Test("No state and no context sends no state")
+    func noStateAndNoContext() async throws {
+        let (session, model) = session(context: [:])
+
+        _ = try await session.decide(Questionnaire { question })
+
+        #expect(try state(of: model) == nil)
     }
 
     @Test("An empty context passes the state through")

@@ -1,7 +1,9 @@
-/// One request: every question, asked about one state.
+/// One request: every question, asked about one state or about none.
 public struct DecisionRequest: Sendable, Codable, Hashable {
-    /// The material to judge.
-    public let state: State
+    /// The material to judge, or `nil` when the questions carry their own
+    /// facts. Through JSON, `.null` and `nil` come out the same: both decode
+    /// as `nil`.
+    public let state: State?
     /// The questions. A model answers them all in one pass.
     public let questionnaire: Questionnaire
     /// How many draws to take. One is a single pass.
@@ -13,7 +15,7 @@ public struct DecisionRequest: Sendable, Codable, Hashable {
     public let metadata: [String: String]
 
     public init(
-        state: State,
+        state: State? = nil,
         questionnaire: Questionnaire,
         samples: Int = 1,
         timeout: Duration? = nil,

@@ -246,6 +246,31 @@ struct CommandSessionTests {
         #expect(isHandOff(response.decision.command))
     }
 
+    @Test("Every call form binds without ambiguity")
+    func everyCallFormBinds() async throws {
+        let model = FakeModel(answers: triageAnswers)
+        let session = DecisionSession(model: model)
+
+        _ = try await session.decide(DeskTriage.self)
+        let _: DeskTriage = try await session.decide()
+        _ = try await session.respond(DeskTriage.self)
+        _ = try await session.decide(DeskTriage.self) { Field("a", 1) }
+        _ = try await session.decide(DeskTriage.self, about: "text")
+        _ = try await session.decide(DeskTriage.questions)
+
+        let commandModel = FakeModel(answers: commandAnswers)
+        let commandSession = DecisionSession(model: commandModel)
+
+        _ = try await commandSession.decide(HandCommand.self)
+        _ = try await commandSession.respond(HandCommand.self)
+
+        let states: [State?] = [
+            nil, nil, nil, .object(["a": .number(1)]), .text("text"), nil,
+        ]
+        #expect(model.requests.map(\.state) == states)
+        #expect(commandModel.requests.map(\.state) == [nil, nil])
+    }
+
     private func isHandOff(_ command: HandCommand) -> Bool {
         if case .handOff = command { return true }
         return false

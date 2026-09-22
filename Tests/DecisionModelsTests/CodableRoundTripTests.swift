@@ -104,6 +104,28 @@ struct CodableRoundTripTests {
         #expect(try roundTrip(Questionnaire(specs)) == Questionnaire(specs))
     }
 
+    @Test("A request with no state encodes with no state field")
+    func requestWithNoStateOmitsTheField() throws {
+        let request = DecisionRequest(
+            questionnaire: Questionnaire { Verify("refund", "Does the customer want money back?") }
+        )
+
+        let fields = try JSONSerialization.jsonObject(with: JSONEncoder().encode(request))
+
+        #expect((fields as? [String: Any])?.keys.contains("state") == false)
+        #expect(try roundTrip(request).state == nil)
+    }
+
+    @Test("A null state decodes as no state")
+    func nullStateDecodesAsNoState() throws {
+        let request = DecisionRequest(
+            state: .null,
+            questionnaire: Questionnaire { Verify("refund", "Does the customer want money back?") }
+        )
+
+        #expect(try roundTrip(request).state == nil)
+    }
+
     @Test("An answer record round-trips in every kind")
     func answerRecordRoundTrips() throws {
         let records: [AnswerRecord] = [

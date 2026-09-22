@@ -8,8 +8,9 @@ import Foundation
 
 /// The body of `POST /v1/systemone`.
 struct JevRequest: Encodable, Sendable {
-    /// The material to judge: a text, an object, or an array.
-    var state: State
+    /// The material to judge: a text, an object, or an array. Absent when the
+    /// request has none; the encoder then omits the field.
+    var state: State?
     /// An alias such as `jev-latest`, or a pinned version.
     var model: String
     /// The questions, by id.

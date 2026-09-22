@@ -53,16 +53,19 @@ enum DecisionPromptBuilder {
     /// Each question heads its JSON field name, and names its id too when
     /// the two differ, so the model and the reader agree on which is which.
     static func prompt(
-        state: State,
+        state: State?,
         questionnaire: Questionnaire,
         fieldNames: [String: String]
     ) -> String {
-        var out = "STATE\n"
-        out += json(state)
-        out += "\n"
+        var out = ""
+        if let state {
+            out += "STATE\n"
+            out += json(state)
+            out += "\n"
+        }
         for spec in questionnaire.specs {
             let field = fieldNames[spec.id] ?? spec.id
-            out += "\n## " + field
+            out += (out.isEmpty ? "## " : "\n## ") + field
             if field != spec.id { out += " (question \"" + spec.id + "\")" }
             out += "\n"
             out += text(of: spec.instructions) + "\n"

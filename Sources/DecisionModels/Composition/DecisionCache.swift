@@ -12,8 +12,8 @@ public protocol DecisionCache: Sendable {
 /// It holds neither the metadata nor the timeout: those tag a call, they do not
 /// change the answer. DESIGN.md section 10.
 public struct CacheKey: Hashable, Sendable {
-    /// The material the model judged.
-    public let state: State
+    /// The material the model judged, or `nil`.
+    public let state: State?
     /// The questions it answered.
     public let questionnaire: Questionnaire
     /// How many draws the caller asked for.

@@ -97,6 +97,34 @@ struct CachedModelTests {
         #expect(inner.callCount == 3)
     }
 
+    @Test("No state and an empty object are different keys")
+    func noStateIsNotAnEmptyObject() async throws {
+        let inner = model()
+        let cache = InMemoryDecisionCache()
+        let cached = CachedModel(inner, storage: cache)
+
+        _ = try await cached.decide(DecisionRequest(questionnaire: teamQuestionnaire))
+        _ = try await cached.decide(
+            DecisionRequest(state: .object([:]), questionnaire: teamQuestionnaire)
+        )
+
+        #expect(inner.callCount == 2)
+        #expect(await cache.count == 2)
+    }
+
+    @Test("Two requests with no state share a key")
+    func noStateHits() async throws {
+        let inner = model()
+        let cached = CachedModel(inner, storage: InMemoryDecisionCache())
+
+        _ = try await cached.decide(DecisionRequest(questionnaire: teamQuestionnaire))
+        _ = try await cached.decide(
+            DecisionRequest(questionnaire: teamQuestionnaire, metadata: ["trace": "t-2"])
+        )
+
+        #expect(inner.callCount == 1)
+    }
+
     @Test("The same state asked of a different model misses")
     func modelIsPartOfTheKey() async throws {
         let cache = InMemoryDecisionCache()

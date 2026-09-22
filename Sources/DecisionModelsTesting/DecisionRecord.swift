@@ -61,14 +61,14 @@ public struct DecisionRecord: Sendable, Codable, Hashable {
 /// A request also carries a timeout and metadata. Neither changes the answer,
 /// so neither belongs in the key: a retry with a new trace id must still hit.
 public struct ReplayKey: Sendable, Hashable, Codable {
-    /// The material the model judged.
-    public var state: State
+    /// The material the model judged, or `nil`.
+    public var state: State?
     /// The questions it answered.
     public var questionnaire: Questionnaire
     /// How many draws the caller asked for.
     public var samples: Int
 
-    public init(state: State, questionnaire: Questionnaire, samples: Int = 1) {
+    public init(state: State? = nil, questionnaire: Questionnaire, samples: Int = 1) {
         self.state = state
         self.questionnaire = questionnaire
         self.samples = samples
