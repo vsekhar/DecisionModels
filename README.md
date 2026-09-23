@@ -83,7 +83,7 @@ try answers[capital].probability   // 0.97
 ## Adding the package
 
 ```swift
-.package(url: "<this repository>", from: "0.2.3")
+.package(url: "<this repository>", from: "0.3.0")
 ```
 
 | Product | Import it for |
