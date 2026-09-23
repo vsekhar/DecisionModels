@@ -2,7 +2,7 @@
 priority: p3
 type: bug
 created: 2026-09-22T18:46:44-04:00
-updated: 2026-09-22T19:23:26-04:00
+updated: 2026-09-22T20:03:27-04:00
 ---
 
 # On-device model collapses two similar yes-or-no questions to one answer
@@ -70,3 +70,21 @@ If one mitigation or a combination makes rows 3 to 6 right without changing the 
 
 ### Report
 The full table with numbers for the baseline and for each mitigation, the diff, and the two runs: the offline suite with warnings as errors and the Apple live suite.
+
+---
+
+_📝 Noted on 2026-09-22 19:44:45-04:00 @ git:2b16bfe+local_
+
+Experiments run 2026-09-22 by a worker on this Mac, three runs per row, greedy unless noted; logs in the session scratchpad (bte-*.log). Baseline: Paris/France alone 1.0; with the Moon control 1.0/0.0; with Paris/Germany 0.0/0.0; with Berlin/Germany 0.0/0.0; with a state naming both facts, both pairs come back right (1.0/0.0 and 1.0/1.0); three samples at temperature one give 0 to 0.67 for the first field. Mitigation A (an instruction line 'Judge each yes or no question on its own; two questions can both be true.') fixes only the first field of the Berlin pair and would break the exact-text instruction test. Mitigation B (the question text as each boolean property's description; SchemaBuilder passes description nil for every property today) fixes the Paris/Germany pair but leaves Berlin collapsed and breaks the existing no-state live test (Moon control drags Paris to 0.0). A+B is wrong on both pairs. C skipped: its precondition failed once B showed the model reads descriptions. Extra probe through the public API: ids paris_france and paris_germany give 1.0/0.0, ids paris_france and berlin_germany give 1.0/1.0. So the collapse follows the JSON field names, which are the caller's question ids: generic ids collapse, ids that name the facts do not. Decision: no adapter change (rule's second branch). DESIGN.md 10.1 and the type doc state the limit with the id finding and the state finding; the sentence I first gave the worker said 'with or without a state', which the numbers contradict, and is corrected. A seventh local live test pins the Berlin pair under generic ids at 0/0 and says a future OS model that answers it right turns the test red on purpose. An adapter-side idea, deriving the schema field name from the question text, is filed as its own low-priority issue rather than done here.
+
+---
+
+_📝 Noted on 2026-09-22 19:54:09-04:00 @ git:2b16bfe+local_
+
+Verifier 2026-09-22: one blocker, fixed. It ran the controls the worker's id probe lacked, nine runs each, all deterministic: under the ids capital/control the first field is false whatever question it holds (Paris/Berlin, Berlin/Paris, Sun/Moon, Rome/Madrid); every other id pair tried, generic or not (q1/q2, a/b, field1/field2, capitalA/capitalB, capital1/capital2, control/capital swapped, paris_france/control), answers both right; capital/berlin_germany still gives capital 0.0. So 'generic ids collapse, descriptive ids do not' was false. DESIGN.md 10.1, the type doc, the test's doc comment, and TESTING.md now say only what the data shows: the effect follows the field names in a way not yet understood, capital/control with two same-topic questions makes the first field false, other id pairs answer right, a state naming both facts makes the answers right. The live test is unchanged and passes (seven Apple live tests green, offline suite green). wip/phi is rewritten from an adapter change into an investigation, with the verifier's table as its starting point.
+
+---
+
+_📝 Noted on 2026-09-22 20:03:26-04:00 @ git:63aeab8+local_
+
+Closed 2026-09-22. Commit 63aeab8 on branch apple-boolean-collapse, merged to main; CI run 35799660116 green. No adapter code changed. DESIGN.md 10.1, the GuidedGenerationModel type doc, TESTING.md, and a seventh local Apple live test record the limit as measured: under the ids capital and control, two same-topic yes-or-no questions come back with the first field false; other id pairs answer right; a state naming both facts answers right. The cause is open in wip/phi (P4).
