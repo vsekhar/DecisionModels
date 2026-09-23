@@ -66,7 +66,9 @@ struct JevLiveTests {
             return
         }
         #expect(reported == "returns")
-        #expect(isClose(options.values.reduce(0, +), 1))
+        // The service rounds each probability to two decimals, so the sum can
+        // miss 1 by a little.
+        #expect(isClose(options.values.reduce(0, +), 1, within: 0.02))
         if let confidence {
             #expect((0...1).contains(confidence))
         }
@@ -79,7 +81,7 @@ struct JevLiveTests {
             return
         }
         #expect(levels.count == Severity.allCases.count)
-        #expect(isClose(levels.values.reduce(0, +), 1))
+        #expect(isClose(levels.values.reduce(0, +), 1, within: 0.02))
         #expect((0...Double(Severity.allCases.count - 1)).contains(score))
         if let scoreConfidence {
             #expect((0...1).contains(scoreConfidence))

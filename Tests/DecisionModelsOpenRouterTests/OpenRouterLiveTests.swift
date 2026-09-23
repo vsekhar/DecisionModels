@@ -58,7 +58,9 @@ struct OpenRouterLiveTests {
         }
         #expect(reported == "payments")
         #expect(options.count == 3)
-        #expect(isClose(options.values.reduce(0, +), 1))
+        // The service rounds each probability to two decimals, so the sum can
+        // miss 1 by a little.
+        #expect(isClose(options.values.reduce(0, +), 1, within: 0.02))
         if let confidence {
             #expect((0...1).contains(confidence))
         }
@@ -70,7 +72,7 @@ struct OpenRouterLiveTests {
             return
         }
         #expect(levels.count == 3)
-        #expect(isClose(levels.values.reduce(0, +), 1))
+        #expect(isClose(levels.values.reduce(0, +), 1, within: 0.02))
         #expect((0...2).contains(score))
 
         // The verdict.
